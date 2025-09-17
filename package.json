@@ -1,0 +1,8 @@
+{
+  "name": "message-garden-api",
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "2",
+    "openai": "^4.58.1"
+  }
+}
