@@ -7,7 +7,9 @@ const {
   OPENAI_API_KEY,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_BUCKET = "flowers"
+  SUPABASE_BUCKET = "flowers",
+  WEBFLOW_API_KEY,
+  WEBFLOW_COLLECTION_ID
 } = process.env;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -16,6 +18,17 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 function hashToSeed(str) {
   const h = crypto.createHash("sha256").update(str).digest();
   return h.readUInt32BE(0);
+}
+
+// helper for slugs (Webflow requires name + slug)
+function slugify(input) {
+  return (input || "")
+    .toString()
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 60) || `bloom-${Date.now()}`;
 }
 
 export default async function handler(req, res) {
@@ -51,15 +64,13 @@ export default async function handler(req, res) {
     const seed = hashToSeed(clean);
 
     // 2) GPT: turn message into a pixel art flower prompt
-    
-const gpt = await openai.chat.completions.create({
-  model: "gpt-4o-mini",
-  messages: [
-    {
-      role: "system",
-      content: `
-You are an AI prompt designer.  
-Every output must strictly follow this art style:  
+    const gpt = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: `You are an AI prompt designer. 
+Every output must strictly follow this art style:
 
 "Create a pixel art isometric illustration of a flower, designed in a clean and minimal retro game style.  
 The object should be seen from a 3/4 isometric perspective, slightly elevated view, with crisp and sharp pixel edges.  
@@ -71,20 +82,17 @@ Add a simple projected shadow on the ground below the object to anchor it in spa
 The background should be a plain desaturated light gray, without textures or noise, so the object is clearly visible.  
 The overall aesthetic should resemble retro 8–16 bit video games, with geometric simplicity and readable iconic details.  
 Keep the proportions small, cute, and slightly exaggerated for charm.  
-Ensure the design style remains consistent for any object generated in this series."  
-`
-    },
-    {
-      role: "user",
-      content: `Message: "${clean}".  
-Adjust only mood/color accents based on this message, while keeping the art style locked.`
-    }
-  ],
-  max_tokens: 200
-});
+Ensure the design style remains consistent for any object generated in this series."`
+        },
+        {
+          role: "user",
+          content: `Message: "${clean}". Adjust only mood/color accents based on this message, while keeping the art style locked.`
+        }
+      ],
+      max_tokens: 200
+    });
 
-const flowerPrompt = gpt.choices[0].message.content.trim();
-
+    const flowerPrompt = gpt.choices[0].message.content.trim();
 
     // 3) Image: transparent PNG via OpenAI Images
     const img = await openai.images.generate({
@@ -109,7 +117,7 @@ const flowerPrompt = gpt.choices[0].message.content.trim();
       .getPublicUrl(filename);
     const image_url = pub.publicUrl;
 
-    // 5) Insert row
+    // 5) Insert row into Supabase DB
     const ins = await supabase.from("blooms").insert({
       message: clean,
       image_url,
@@ -118,6 +126,38 @@ const flowerPrompt = gpt.choices[0].message.content.trim();
     });
     if (ins.error) throw ins.error;
 
+    // 6) Insert into Webflow CMS
+    try {
+      const wfResp = await fetch(
+        `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${WEBFLOW_API_KEY}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            isArchived: false,
+            isDraft: false,
+            fieldData: {
+              name: clean.slice(0, 80), // required by Webflow
+              slug: slugify(clean),     // required by Webflow
+              message: clean,           // must match your CMS field slug
+              image: { url: image_url, alt: clean } // must match your CMS field slug
+            }
+          })
+        }
+      );
+
+      if (!wfResp.ok) {
+        const txt = await wfResp.text();
+        console.error("Webflow CMS error:", txt);
+      }
+    } catch (err) {
+      console.error("Webflow CMS insert failed:", err);
+    }
+
+    // 7) Return response
     return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
   } catch (e) {
     console.error(e);
