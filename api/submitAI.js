@@ -50,20 +50,41 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // 2) GPT: turn message into a style-locked flower prompt
-    const gpt = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Convert any message into a short, safe prompt for a flower illustration. Always keep this style: 'Flat vector illustration of a single flower, soft pastel colors, minimalist, centered, transparent background'. Adjust color/mood to match the message feeling. No text, no logos, no faces."
-        },
-        { role: "user", content: clean }
-      ],
-      max_tokens: 80
-    });
-    const flowerPrompt = gpt.choices[0].message.content.trim();
+    // 2) GPT: turn message into a pixel art flower prompt
+    
+const gpt = await openai.chat.completions.create({
+  model: "gpt-4o-mini",
+  messages: [
+    {
+      role: "system",
+      content: `
+You are an AI prompt designer.  
+Every output must strictly follow this art style:  
+
+"Create a pixel art isometric illustration of a flower, designed in a clean and minimal retro game style.  
+The object should be seen from a 3/4 isometric perspective, slightly elevated view, with crisp and sharp pixel edges.  
+Use a limited 6–8 color palette dominated by light grays and white tones as the base, with deep navy blue and dark gray for shadows, and small accent colors (like orange or bright blue) for details.  
+Apply simple flat shading with no gradients, only solid blocks of color to suggest light and shadow.  
+The main light source should come from the upper left, casting shadows to the bottom right.  
+Outline all shapes with a consistent 1–2 pixel border in dark navy/black.  
+Add a simple projected shadow on the ground below the object to anchor it in space.  
+The background should be a plain desaturated light gray, without textures or noise, so the object is clearly visible.  
+The overall aesthetic should resemble retro 8–16 bit video games, with geometric simplicity and readable iconic details.  
+Keep the proportions small, cute, and slightly exaggerated for charm.  
+Ensure the design style remains consistent for any object generated in this series."  
+`
+    },
+    {
+      role: "user",
+      content: `Message: "${clean}".  
+Adjust only mood/color accents based on this message, while keeping the art style locked.`
+    }
+  ],
+  max_tokens: 200
+});
+
+const flowerPrompt = gpt.choices[0].message.content.trim();
+
 
     // 3) Image: transparent PNG via OpenAI Images
     const img = await openai.images.generate({
