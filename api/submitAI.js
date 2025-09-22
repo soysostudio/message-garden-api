@@ -50,6 +50,11 @@ export default async function handler(req, res) {
     const clean = (message || "").toString().trim().slice(0, 500);
     if (!clean) return res.status(400).json({ error: "Message required" });
 
+      // Identify user by IP (works on Vercel)
+    const ip =
+      req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
+      req.socket.remoteAddress;
+
     // 1) CAP: stop at 200 before doing anything expensive
     const { count, error: countErr } = await supabase
       .from("blooms")
@@ -61,6 +66,18 @@ export default async function handler(req, res) {
       });
     }
 
+    // 2) Per-IP limit: max 3 blooms
+    const { count: userCount, error: userErr } = await supabase
+      .from("blooms")
+      .select("*", { count: "exact", head: true })
+      .eq("ip", ip);
+    if (userErr) throw userErr;
+    if (userCount >= 3) {
+      return res.status(403).json({
+        error: "🌸 You can only create 3 blooms."
+      });
+    }
+    
     const seed = hashToSeed(clean);
 
     // 2) GPT: turn message into a pixel art flower prompt
@@ -122,7 +139,8 @@ Ensure the design style remains consistent for any object generated in this seri
       message: clean,
       image_url,
       seed,
-      style_version: 2
+      style_version: 2,
+      ip
     });
     if (ins.error) throw ins.error;
 
