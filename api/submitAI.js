@@ -69,7 +69,7 @@ export default async function handler(req, res) {
     const img = await openai.images.generate({
       model: "gpt-image-1",
       prompt: flowerPrompt,
-      size: "512x512",
+      size: "1024x1024",
       background: "transparent"
     });
 
