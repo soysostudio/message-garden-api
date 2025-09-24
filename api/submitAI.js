@@ -158,11 +158,14 @@ Ensure the design style remains consistent for any object generated in this seri
             isArchived: false,
             isDraft: false,
             fieldData: {
-              name: clean.slice(0, 80), // required by Webflow
-              slug: slugify(clean),     // required by Webflow
-              message: clean,           // must match your CMS field slug
-              image: { url: image_url, alt: clean } // must match your CMS field slug
-            }
+                  name: clean.slice(0, 80),   // ✅ required
+                  slug: slugify(clean),       // ✅ required
+                  message: clean,             // ✅ from your collection
+                  "flower-image": {           // ✅ must match slug exactly
+                  url: image_url,
+                  alt: clean
+               }
+
           })
         }
       );
