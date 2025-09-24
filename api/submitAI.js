@@ -50,7 +50,7 @@ export default async function handler(req, res) {
     const clean = (message || "").toString().trim().slice(0, 500);
     if (!clean) return res.status(400).json({ error: "Message required" });
 
-      // Identify user by IP (works on Vercel)
+    // Identify user by IP (works on Vercel)
     const ip =
       req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
       req.socket.remoteAddress;
@@ -77,10 +77,10 @@ export default async function handler(req, res) {
         error: "🌸 You can only create 3 blooms."
       });
     }
-    
+
     const seed = hashToSeed(clean);
 
-    // 2) GPT: turn message into a pixel art flower prompt
+    // 3) GPT: turn message into a pixel art flower prompt
     const gpt = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -111,7 +111,7 @@ Ensure the design style remains consistent for any object generated in this seri
 
     const flowerPrompt = gpt.choices[0].message.content.trim();
 
-    // 3) Image: transparent PNG via OpenAI Images
+    // 4) Image: transparent PNG via OpenAI Images
     const img = await openai.images.generate({
       model: "gpt-image-1",
       prompt: flowerPrompt,
@@ -122,7 +122,7 @@ Ensure the design style remains consistent for any object generated in this seri
     const b64 = img.data[0].b64_json;
     const pngBuffer = Buffer.from(b64, "base64");
 
-    // 4) Upload to Supabase Storage
+    // 5) Upload to Supabase Storage
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
     const up = await supabase.storage
       .from(SUPABASE_BUCKET)
@@ -134,7 +134,7 @@ Ensure the design style remains consistent for any object generated in this seri
       .getPublicUrl(filename);
     const image_url = pub.publicUrl;
 
-    // 5) Insert row into Supabase DB
+    // 6) Insert row into Supabase DB
     const ins = await supabase.from("blooms").insert({
       message: clean,
       image_url,
@@ -144,7 +144,7 @@ Ensure the design style remains consistent for any object generated in this seri
     });
     if (ins.error) throw ins.error;
 
-    // 6) Insert into Webflow CMS
+    // 7) Insert into Webflow CMS
     try {
       const wfResp = await fetch(
         `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`,
@@ -158,14 +158,14 @@ Ensure the design style remains consistent for any object generated in this seri
             isArchived: false,
             isDraft: false,
             fieldData: {
-                  name: clean.slice(0, 80),   // ✅ required
-                  slug: slugify(clean),       // ✅ required
-                  message: clean,             // ✅ from your collection
-                  "flower-image": {           // ✅ must match slug exactly
-                  url: image_url,
-                  alt: clean
-               }
-
+              name: clean.slice(0, 80),    // ✅ required
+              slug: slugify(clean),        // ✅ required
+              message: clean,              // ✅ matches your CMS field slug
+              "flower-image": {            // ✅ matches your CMS field slug
+                url: image_url,
+                alt: clean
+              }
+            }
           })
         }
       );
@@ -178,7 +178,7 @@ Ensure the design style remains consistent for any object generated in this seri
       console.error("Webflow CMS insert failed:", err);
     }
 
-    // 7) Return response
+    // 8) Return response
     return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
   } catch (e) {
     console.error(e);
