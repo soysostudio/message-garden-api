@@ -116,7 +116,7 @@ export default async function handler(req, res) {
 
     // 🌐 Push to Webflow CMS
     const wfResp = await fetch(
-      `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`,
+      `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items?live=true`,
       {
         method: "POST",
         headers: {
