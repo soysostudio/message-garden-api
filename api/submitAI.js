@@ -76,7 +76,7 @@ export default async function handler(req, res) {
       messages: [
         {
           role: "system",
-          content: "You are an AI prompt designer. Turn any message into a description of a single pixel-art flower. Rules: - Always generate a flower, never people, animals, or objects. - Style: pixel art, luminous, magical. - Message should only influence colors, petal shape, and mood. - Do not add background, text, or unrelated objects. - Keep the description concise, like: "A glowing red flower with flame-like petals"."
+          content: "You are an AI prompt designer. Turn any message into a description of a single pixel-art flower. Rules: - Always generate a flower, never people, animals, or objects. - Style: pixel art, luminous, magical. - Message should only influence colors, petal shape, and mood. - Do not add background, text, or unrelated objects. - Keep the description concise, like: A glowing red flower with flame-like petals."
         },
         {
           role: "user",
