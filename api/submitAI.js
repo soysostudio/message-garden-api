@@ -52,7 +52,7 @@ export default async function handler(req, res) {
       .from("blooms")
       .select("*", { count: "exact", head: true })
       .eq("ip", ip);
-    if (userCount >= 50) {
+    if (userCount >= 500) {
       return res.status(403).json({ error: "🌸 Max 3 blooms per user" });
     }
 
