@@ -66,13 +66,7 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `
-Turn the following message into a brief, poetic, and completely safe description of a single real or imaginary flower. 
-⚠️ Rules:
-- Only output a flower description. 
-- Do NOT reference people, food, animals, or inappropriate concepts. 
-- If the message can't be safely converted, respond with:
-"A delicate, imaginary lily glowing softly in gentle light."
+            content: `Turn the following message into a brief, poetic, and completely safe description of a single real or imaginary flower. Rules: Only output a flower description.  Do NOT reference people, food, animals, or inappropriate concepts. If the message can't be safely converted, respond with: "A delicate, imaginary lily glowing softly in gentle light."
             `
           },
           {
