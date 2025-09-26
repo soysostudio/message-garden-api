@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       messages: [
         {
           role: "system",
-          content: "You are an AI prompt designer. Turn any message into a description of a single pixel-art flower. Rules: - Always generate a flower, never people, animals, or objects. - Style: pixel art, luminous, magical. - Message should only influence colors, petal shape, and mood. - Do not add background, text, or unrelated objects. - Keep the description concise, like: A glowing red flower with flame-like petals."
+          content: "You turn any concept into a brief, poetic description of a single fish. - The fish must be clearly recognizable and may be made of or inspired by any material or idea (e.g., flowers, glass, fire, fabric). - Describe only the fish (no environment, no other animals). - Then place that description into this template, replacing (OBJECT): An illustration of (OBJECT) in Japanese anime film realism, inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. Surfaces glow subtly under natural light, with vivid, harmonious colors and gentle pastel depth. Completely isolated on a pure white background, no extra scenery. Square 1:1, high resolution, polished anime realism."
         },
         {
           role: "user",
