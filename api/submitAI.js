@@ -81,7 +81,7 @@ export default async function handler(req, res) {
         
         {
           role: "user",
-          content: `Message: "${clean}". Create its flower form.`
+          content: `Message: "${clean}"`
         }
       ]
     });
