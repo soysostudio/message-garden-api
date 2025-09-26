@@ -60,11 +60,12 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "Garden is full 🌱" });
     }
 
+    // 🌸 Per-IP limit: Max 3
     const { count: userCount } = await supabase
       .from("blooms")
       .select("*", { count: "exact", head: true })
       .eq("ip", ip);
-    if (userCount >= 50) {
+    if (userCount >= 3) {
       return res.status(403).json({ error: "🌸 Max 3 blooms per user" });
     }
 
@@ -76,7 +77,8 @@ export default async function handler(req, res) {
       messages: [
         {
           role: "system",
-          content: "You are an AI prompt designer. Turn any message into a description of a single pixel-art flower. Rules: - Always generate a flower, never people, animals, or objects. - Style: pixel art, luminous, magical. - Message should only influence colors, petal shape, and mood. - Do not add background, text, or unrelated objects. - Keep the description concise, like: A glowing red flower with flame-like petals."
+          content:
+            "You are an AI prompt designer. Turn any message into a description of a single pixel-art flower. Rules: - Always generate a flower, never people, animals, or objects. - Style: pixel art, luminous, magical. - Message should only influence colors, petal shape, and mood. - Do not add background, text, or unrelated objects. - Keep the description concise."
         },
         {
           role: "user",
@@ -114,7 +116,7 @@ export default async function handler(req, res) {
       ip
     });
 
-    // 🌐 Push to Webflow CMS
+    // 🌐 Push to Webflow CMS (publish live immediately)
     const wfResp = await fetch(
       `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items?live=true`,
       {
@@ -136,15 +138,20 @@ export default async function handler(req, res) {
       }
     );
 
+    const wfData = await wfResp.json();
     if (!wfResp.ok) {
-      const txt = await wfResp.text();
-      console.error("Webflow CMS error:", txt);
+      console.error("Webflow CMS error:", wfData);
+      return res.status(500).json({ error: "Webflow CMS insert failed", details: wfData });
     }
 
-    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
+    return res.status(200).json({
+      ok: true,
+      image_url,
+      prompt: flowerPrompt,
+      webflowItemId: wfData.id // return new item ID so frontend can confirm it
+    });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
-
