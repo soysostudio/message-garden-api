@@ -30,16 +30,6 @@ function slugify(input) {
     .slice(0, 60) || `bloom-${Date.now()}`;
 }
 
-// 🔒 Sanitizar mensaje para evitar bloqueos
-function sanitizeInput(input) {
-  return input
-    .replace(
-      /(sangre|sangriento|matar|muerte|arma|violencia|sexy|cuerpo|kill|blood|gun|sex|nude|death)/gi,
-      "místico"
-    )
-    .slice(0, 100);
-}
-
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -57,8 +47,6 @@ export default async function handler(req, res) {
     const { message } = req.body || {};
     const clean = (message || "").toString().trim().slice(0, 500);
     if (!clean) return res.status(400).json({ error: "Message required" });
-
-    const safeMessage = sanitizeInput(clean);
 
     const ip =
       req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
@@ -80,35 +68,31 @@ export default async function handler(req, res) {
       return res.status(403).json({ error: "🌸 Max 3 blooms per user" });
     }
 
-    const seed = hashToSeed(safeMessage);
+    const seed = hashToSeed(clean);
 
-    // 🎨 Prompt fijo + concepto del usuario
-    const dallePrompt = `An imaginative flower that represents the concept of "${safeMessage}". Always generate a **flower only**. Never include people, animals, objects, text, or backgrounds. Style: Japanese anime realism inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic and cinematic, smooth color blending, delicate gradients, luminous glow. Vivid harmonious colors, pastel tones. Isolated on pure white background. Square format (1:1), high resolution, polished anime realism.`;
+    // 🎨 Generate prompt
+    const gpt = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are an AI prompt designer. Turn any message into a description of a single pixel-art flower. Rules: - Always generate a flower, never people, animals, or objects. - Style: pixel art, luminous, magical. - Message should only influence colors, petal shape, and mood. - Do not add background, text, or unrelated objects. - Keep the description concise, like: A glowing red flower with flame-like petals."
+        },
+        {
+          role: "user",
+          content: `Message: "${clean}". Create its flower form.`
+        }
+      ]
+    });
+    const flowerPrompt = gpt.choices[0].message.content.trim();
 
-    // 🖼️ Generar imagen con fallback
-    let img;
-    try {
-      img = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt: dallePrompt,
-        size: "1024x1024",
-        background: "transparent"
-      });
-    } catch (err) {
-      if (err.code === "moderation_blocked") {
-        console.error("🚫 Prompt bloqueado, usando fallback seguro…");
-        img = await openai.images.generate({
-          model: "gpt-image-1",
-          prompt: `A luminous safe flower in Makoto Shinkai anime realism style.
-          Soft pastel colors, cinematic lighting, isolated on pure white background.`,
-          size: "1024x1024",
-          background: "transparent"
-        });
-      } else {
-        throw err;
-      }
-    }
-
+    // 🖼️ Generate image
+    const img = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt: flowerPrompt,
+      size: "1024x1024",
+      background: "transparent"
+    });
     const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
 
     // ☁️ Upload to Supabase
@@ -123,10 +107,10 @@ export default async function handler(req, res) {
 
     // 🗄️ Insert in Supabase DB
     await supabase.from("blooms").insert({
-      message: safeMessage,
+      message: clean,
       image_url,
       seed,
-      style_version: 3,
+      style_version: 2,
       ip
     });
 
@@ -143,10 +127,10 @@ export default async function handler(req, res) {
           isArchived: false,
           isDraft: false,
           fieldData: {
-            name: safeMessage.slice(0, 80),
-            slug: slugify(safeMessage),
-            message: safeMessage,
-            "flower-image": { url: image_url, alt: safeMessage }
+            name: clean.slice(0, 80),
+            slug: slugify(clean),
+            message: clean,
+            "flower-image": { url: image_url, alt: clean }
           }
         })
       }
@@ -157,10 +141,11 @@ export default async function handler(req, res) {
       console.error("Webflow CMS error:", txt);
     }
 
-    return res.status(200).json({ ok: true, image_url, prompt: dallePrompt });
+    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
+
 
