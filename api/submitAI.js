@@ -83,14 +83,7 @@ export default async function handler(req, res) {
     const seed = hashToSeed(safeMessage);
 
     // 🎨 Prompt fijo + concepto del usuario
-    const dallePrompt = `
-An imaginative flower that symbolizes: "${safeMessage}".
-Style: Japanese anime realism inspired by Makoto Shinkai.
-Soft yet vibrant lighting, natural highlights, atmospheric shading.
-Poetic and cinematic, smooth color blending, delicate gradients, luminous glow.
-Vivid harmonious colors, pastel tones. Isolated on pure white background.
-Square format (1:1), high resolution, polished anime realism.
-`;
+    const dallePrompt = `An imaginative flower that represents the concept of "${safeMessage}". Always generate a **flower only**. Never include people, animals, objects, text, or backgrounds. Style: Japanese anime realism inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic and cinematic, smooth color blending, delicate gradients, luminous glow. Vivid harmonious colors, pastel tones. Isolated on pure white background. Square format (1:1), high resolution, polished anime realism.`;
 
     // 🖼️ Generar imagen con fallback
     let img;
@@ -106,10 +99,8 @@ Square format (1:1), high resolution, polished anime realism.
         console.error("🚫 Prompt bloqueado, usando fallback seguro…");
         img = await openai.images.generate({
           model: "gpt-image-1",
-          prompt: `
-          A luminous safe flower in Makoto Shinkai anime realism style.
-          Soft pastel colors, cinematic lighting, isolated on pure white background.
-          `,
+          prompt: `A luminous safe flower in Makoto Shinkai anime realism style.
+          Soft pastel colors, cinematic lighting, isolated on pure white background.`,
           size: "1024x1024",
           background: "transparent"
         });
