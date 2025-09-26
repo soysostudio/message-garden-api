@@ -8,6 +8,8 @@ const {
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_BUCKET = "flowers",
+  WEBFLOW_API_KEY,
+  WEBFLOW_COLLECTION_ID
 } = process.env;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -62,13 +64,13 @@ export default async function handler(req, res) {
       .from("blooms")
       .select("*", { count: "exact", head: true })
       .eq("ip", ip);
-    if (userCount >= 70) {
+    if (userCount >= 3) {
       return res.status(403).json({ error: "🌸 Max 3 blooms per user" });
     }
 
     const seed = hashToSeed(clean);
 
-    // 🎨 Generate prompt
+    // 🎨 Generate safe prompt
     let flowerPrompt;
     try {
       const gpt = await openai.chat.completions.create({
@@ -79,24 +81,22 @@ export default async function handler(req, res) {
             content: `
               You are an AI prompt designer.
               Convert any user message into a description of a single imaginative flower.
-
-              ⚠️ Rules:
-              - Always generate a flower — never people, animals, objects, or text.
-              - Style must always be:
+              Always enforce this locked style:
 
               "An illustration of a flower in the style of Japanese anime realism, inspired by Makoto Shinkai.
-              Painted with soft yet vibrant lighting, natural highlights, and atmospheric shading.
-              Poetic and cinematic feel, smooth gradients, no harsh outlines.
-              Subtle glow under natural light. Vivid, harmonious colors with pastel tones.
+              Soft yet vibrant lighting, natural highlights, cinematic shading.
+              Poetic and dreamy, smooth gradients, no harsh outlines.
+              Subtle glow under natural light. Vivid harmonious colors with pastel tones.
               Square format (1:1), high resolution, polished anime realism."
 
-              - The user message should only affect the flower’s **color, petal shape, and mood**.
-              - Keep the description short and safe, under 80 words.
+              - Never include unsafe or violent words.
+              - Replace unsafe concepts with calming, natural ones (sky, water, fire, wind, petals).
+              - Output only one short safe flower description (<60 words).
             `,
           },
           {
             role: "user",
-            content: `Message: "${clean}". Make this into a flower description using the locked anime realism style.`,
+            content: `Message: "${clean}". Turn it into a safe flower description.`,
           },
         ],
       });
@@ -104,50 +104,77 @@ export default async function handler(req, res) {
       flowerPrompt = gpt.choices[0].message.content.trim();
     } catch (err) {
       console.error("⚠️ OpenAI rejected prompt:", err.message);
-      // fallback safe prompt
       flowerPrompt =
-        "A luminous anime-style flower, glowing softly in pastel tones, painted with poetic Makoto Shinkai realism.";
+        "An anime-realism flower glowing softly in pastel tones, luminous and poetic, painted with Makoto Shinkai style.";
     }
 
     // 🖼️ Generate image
-    let pngBuffer;
+    let image_url;
     try {
       const img = await openai.images.generate({
         model: "gpt-image-1",
         prompt: flowerPrompt,
-        size: "1024x1024",
-        background: "transparent",
+        size: "1024x1024"
       });
-      pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
+
+      const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
+      const filename = `bloomAI_${Date.now()}_${seed}.png`;
+
+      await supabase.storage
+        .from(SUPABASE_BUCKET)
+        .upload(filename, pngBuffer, { contentType: "image/png" });
+
+      const { data: pub } = supabase.storage
+        .from(SUPABASE_BUCKET)
+        .getPublicUrl(filename);
+
+      image_url = pub.publicUrl;
     } catch (err) {
-      console.error("⚠️ OpenAI image error:", err.message);
+      console.error("⚠️ Image generation failed:", err.message);
       return res
-        .status(500)
+        .status(400)
         .json({ error: "Image generation failed", details: err.message });
     }
-
-    // ☁️ Upload to Supabase
-    const filename = `bloomAI_${Date.now()}_${seed}.png`;
-    await supabase.storage
-      .from(SUPABASE_BUCKET)
-      .upload(filename, pngBuffer, { contentType: "image/png" });
-    const { data: pub } = supabase.storage
-      .from(SUPABASE_BUCKET)
-      .getPublicUrl(filename);
-    const image_url = pub.publicUrl;
 
     // 🗄️ Insert in Supabase DB
     await supabase.from("blooms").insert({
       message: clean,
       image_url,
       seed,
-      style_version: 2,
-      ip,
+      style_version: 3,
+      ip
     });
+
+    // 🌐 Push to Webflow CMS
+    const wfResp = await fetch(
+      `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${WEBFLOW_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          isArchived: false,
+          isDraft: false,
+          fieldData: {
+            name: clean.slice(0, 80),
+            slug: slugify(clean),
+            message: clean,
+            "flower-image": { url: image_url, alt: clean }
+          }
+        })
+      }
+    );
+
+    if (!wfResp.ok) {
+      const txt = await wfResp.text();
+      console.error("⚠️ Webflow CMS error:", txt);
+    }
 
     return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
   } catch (e) {
-    console.error(e);
+    console.error("⚠️ Server error:", e);
     return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
