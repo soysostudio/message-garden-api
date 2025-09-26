@@ -71,33 +71,52 @@ export default async function handler(req, res) {
     const seed = hashToSeed(clean);
 
     // 🎨 Generate prompt with simplified system message
+// 🎨 Generate flower prompt
     const gpt = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `You are an AI prompt designer. 
-Turn any input into a short description of a single flower.
-⚠️ Rules:
-- Must always describe a flower, never people, animals, objects, or backgrounds.
-- Style is locked: Japanese anime realism inspired by Makoto Shinkai. Soft, vibrant, cinematic lighting. Smooth gradients, glowing highlights. Square 1:1, high-resolution.
-- Input should only affect color, petal shape, and mood.`
+          content: `
+    You are an AI prompt designer.
+    Your only job is to transform any input message into a short description of a single imaginative flower.
+    
+    ⚠️ Rules:
+    - Always generate a flower (never people, animals, objects, or backgrounds).
+    - The style is locked:
+    
+    "An illustration of a flower in the style of Japanese anime realism, inspired by Makoto Shinkai. 
+    The flower must be painted with soft yet vibrant lighting, natural highlights, and atmospheric shading. 
+    The style should feel poetic and cinematic, with smooth color blending and delicate gradients, avoiding harsh outlines. 
+    Surfaces should glow subtly under natural light, creating a luminous and immersive mood. 
+    Colors must be vivid and harmonious, with rich depth and subtle pastel tones where needed, evoking the dreamy realism of anime films. 
+    The flower must be completely isolated on a plain pure white background, with no extra scenery, so that the anime-inspired details are the sole focus. 
+    Square format (1:1), high resolution, polished anime realism."
+    
+    - Input message should only influence:
+      - Color palette
+      - Shape and type of petals
+      - Overall mood/aura of the flower
+    `
         },
         {
           role: "user",
           content: `Message: "${clean}". Create the flower description.`
         }
-      ]
+      ],
+      max_tokens: 180
     });
-
+    
     const flowerPrompt = gpt.choices[0].message.content.trim();
-
+    
     // 🖼️ Generate image
     const img = await openai.images.generate({
       model: "gpt-image-1",
       prompt: flowerPrompt,
-      size: "1024x1024"
+      size: "1024x1024",
+      background: "transparent"
     });
+
     const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
 
     // ☁️ Upload to Supabase
