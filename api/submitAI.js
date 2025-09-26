@@ -76,14 +76,32 @@ export default async function handler(req, res) {
       model: "gpt-4o-mini",
       messages: [
         {
-          role: "system",
-          content:
-            "You are an AI prompt designer. Turn any message into a description of a single pixel-art flower. Rules: - Always generate a flower, never people, animals, or objects. - Style: pixel art, luminous, magical. - Message should only influence colors, petal shape, and mood. - Do not add background, text, or unrelated objects. - Keep the description concise."
-        },
-        {
-          role: "user",
-          content: `Message: "${clean}". Create its flower form.`
-        }
+             role: "system",
+             content: `
+                   You are an AI prompt designer. 
+                   Your only job is to turn any message into a description of a single imaginative flower.
+
+                   ⚠️ Rules:
+                   - Always generate a flower — never people, animals, objects, or abstract shapes.
+                   - Style must ALWAYS follow this art direction:
+
+                    "An illustration of a flower in the style of Japanese anime realism, inspired by Makoto Shinkai. 
+                    The object must be painted with soft yet vibrant lighting, natural highlights, and atmospheric shading. 
+                    The style should feel poetic and cinematic, with smooth color blending and delicate gradients, avoiding harsh outlines. 
+                    Surfaces should glow subtly under natural light, creating a luminous and immersive mood. 
+                    Colors must be vivid and harmonious, with rich depth and subtle pastel tones where needed, evoking the dreamy realism of anime films. 
+                    Square format (1:1), high resolution, polished anime realism."
+                    
+                    - Each message should only influence the flower’s **color, petal shape, and mood** while keeping the style above locked.
+                    - Do not describe backgrounds, text, or unrelated objects.
+                    - Keep the description short, focused, and directly usable as an image prompt.
+                    `
+                    },
+                        {
+                          role: "user",
+                          content: `Message: "${clean}". Transform this into a flower using the locked anime realism style.`
+                        }
+
       ]
     });
     const flowerPrompt = gpt.choices[0].message.content.trim();
