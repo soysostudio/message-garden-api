@@ -7,9 +7,7 @@ const {
   OPENAI_API_KEY,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_BUCKET = "flowers",
-  WEBFLOW_API_KEY,
-  WEBFLOW_COLLECTION_ID
+  SUPABASE_BUCKET = "flowers"
 } = process.env;
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -18,16 +16,6 @@ const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 function hashToSeed(str) {
   const h = crypto.createHash("sha256").update(str).digest();
   return h.readUInt32BE(0);
-}
-
-function slugify(input) {
-  return (input || "")
-    .toString()
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .slice(0, 60) || `bloom-${Date.now()}`;
 }
 
 export default async function handler(req, res) {
@@ -100,6 +88,7 @@ export default async function handler(req, res) {
     await supabase.storage
       .from(SUPABASE_BUCKET)
       .upload(filename, pngBuffer, { contentType: "image/png" });
+
     const { data: pub } = supabase.storage
       .from(SUPABASE_BUCKET)
       .getPublicUrl(filename);
@@ -114,38 +103,9 @@ export default async function handler(req, res) {
       ip
     });
 
-    // 🌐 Push to Webflow CMS
-    const wfResp = await fetch(
-      `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items?live=true`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${WEBFLOW_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          isArchived: false,
-          isDraft: false,
-          fieldData: {
-            name: clean.slice(0, 80),
-            slug: slugify(clean),
-            message: clean,
-            "flower-image": { url: image_url, alt: clean }
-          }
-        })
-      }
-    );
-
-    if (!wfResp.ok) {
-      const txt = await wfResp.text();
-      console.error("Webflow CMS error:", txt);
-    }
-
     return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
-
-
