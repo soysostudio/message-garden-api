@@ -45,14 +45,14 @@ export default async function handler(req, res) {
 
   try {
     const { message } = req.body || {};
-    const clean = (message || "").toString().trim().slice(0, 300);
+    const clean = (message || "").toString().trim().slice(0, 500);
     if (!clean) return res.status(400).json({ error: "Message required" });
 
     const ip =
       req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
       req.socket.remoteAddress;
 
-    // 🌸 Limit checks
+    // 🌸 Limit check
     const { count } = await supabase
       .from("blooms")
       .select("*", { count: "exact", head: true });
@@ -65,50 +65,28 @@ export default async function handler(req, res) {
       .select("*", { count: "exact", head: true })
       .eq("ip", ip);
     if (userCount >= 50) {
-      return res.status(403).json({ error: "🌸 Max 5 blooms per user" });
+      return res.status(403).json({ error: "🌸 Max 3 blooms per user" });
     }
 
     const seed = hashToSeed(clean);
 
-    // 🎨 Generate prompt with simplified system message
-// 🎨 Generate flower prompt
+    // 🎨 Generate prompt
     const gpt = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: `
-    You are an AI prompt designer.
-    Your only job is to transform any input message into a short description of a single imaginative flower.
-    
-    ⚠️ Rules:
-    - Always generate a flower (never people, animals, objects, or backgrounds).
-    - The style is locked:
-    
-    "An illustration of a flower in the style of Japanese anime realism, inspired by Makoto Shinkai. 
-    The flower must be painted with soft yet vibrant lighting, natural highlights, and atmospheric shading. 
-    The style should feel poetic and cinematic, with smooth color blending and delicate gradients, avoiding harsh outlines. 
-    Surfaces should glow subtly under natural light, creating a luminous and immersive mood. 
-    Colors must be vivid and harmonious, with rich depth and subtle pastel tones where needed, evoking the dreamy realism of anime films. 
-    The flower must be completely isolated on a plain pure white background, with no extra scenery, so that the anime-inspired details are the sole focus. 
-    Square format (1:1), high resolution, polished anime realism."
-    
-    - Input message should only influence:
-      - Color palette
-      - Shape and type of petals
-      - Overall mood/aura of the flower
-    `
+          content: "You are an AI prompt designer. Your only job is to transform any input message into a short description of a single imaginative flower.Rules: - Always generate a flower (never people, animals, objects, or backgrounds). - The style is locked: An illustration of a flower in the style of Japanese anime realism, inspired by Makoto Shinkai. The flower must be painted with soft yet vibrant lighting, natural highlights, and atmospheric shading. The style should feel poetic and cinematic, with smooth color blending and delicate gradients, avoiding harsh outlines. Surfaces should glow subtly under natural light, creating a luminous and immersive mood. Colors must be vivid and harmonious, with rich depth and subtle pastel tones where needed, evoking the dreamy realism of anime films. The flower must be completely isolated on a plain pure white background, with no extra scenery, so that the anime-inspired details are the sole focus. Square format (1:1), high resolution, polished anime realism. - Input message should only influence:  - Color palette - Shape and type of petals - Overall mood/aura of the flower"
         },
+        
         {
           role: "user",
-          content: `Message: "${clean}". Create the flower description.`
+          content: `Message: "${clean}". Create its flower form.`
         }
-      ],
-      max_tokens: 180
+      ]
     });
-    
     const flowerPrompt = gpt.choices[0].message.content.trim();
-    
+
     // 🖼️ Generate image
     const img = await openai.images.generate({
       model: "gpt-image-1",
@@ -116,7 +94,6 @@ export default async function handler(req, res) {
       size: "1024x1024",
       background: "transparent"
     });
-
     const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
 
     // ☁️ Upload to Supabase
@@ -134,11 +111,11 @@ export default async function handler(req, res) {
       message: clean,
       image_url,
       seed,
-      style_version: 3,
+      style_version: 2,
       ip
     });
 
-    // 🌐 Push to Webflow CMS (publish live immediately)
+    // 🌐 Push to Webflow CMS
     const wfResp = await fetch(
       `https://api.webflow.com/v2/collections/${WEBFLOW_COLLECTION_ID}/items?live=true`,
       {
@@ -160,18 +137,12 @@ export default async function handler(req, res) {
       }
     );
 
-    const wfData = await wfResp.json();
     if (!wfResp.ok) {
-      console.error("Webflow CMS error:", wfData);
-      return res.status(500).json({ error: "Webflow CMS insert failed", details: wfData });
+      const txt = await wfResp.text();
+      console.error("Webflow CMS error:", txt);
     }
 
-    return res.status(200).json({
-      ok: true,
-      image_url,
-      prompt: flowerPrompt,
-      webflowItemId: wfData.id
-    });
+    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Server error", details: e.message });
