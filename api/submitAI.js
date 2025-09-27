@@ -58,13 +58,23 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // 🎨 Generate prompt
+    // 🎨 Generate safe flower prompt
     const gpt = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You turn any concept into a brief, poetic description of a single flower. The flower must be clearly recognizable and may be made of or inspired by any material or idea (e.g., flowers, glass, fire, fabric). Describe only the flower (no environment, no other animals). Then place that description into this template, replacing (OBJECT): An illustration of (OBJECT) in Japanese anime film realism, inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. Surfaces glow subtly under natural light, with vivid, harmonious colors and gentle pastel depth. Completely isolated on a pure white background, no extra scenery. Square 1:1, high resolution, polished anime realism."
+          content: `You turn any concept into a brief, poetic description of a single flower. 
+The flower must always be safe and clearly recognizable. 
+⚠️ Never describe people, body parts, violence, nudity, politics, or food. 
+Only flowers or flowers inspired by abstract materials (glass, fire, fabric, etc). 
+Then place that description into this template, replacing (OBJECT): 
+An illustration of (OBJECT) in Japanese anime film realism, inspired by Makoto Shinkai. 
+Soft yet vibrant lighting, natural highlights, and atmospheric shading. 
+Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. 
+Surfaces glow subtly under natural light, with vivid, harmonious colors and gentle pastel depth. 
+Completely isolated on a pure white background, no extra scenery. 
+Square 1:1, high resolution, polished anime realism.`
         },
         {
           role: "user",
@@ -72,7 +82,19 @@ export default async function handler(req, res) {
         }
       ]
     });
+
     const flowerPrompt = gpt.choices[0].message.content.trim();
+
+    // 🔍 Moderation check before image generation
+    const moderation = await openai.moderations.create({
+      model: "omni-moderation-latest",
+      input: flowerPrompt
+    });
+    if (moderation.results[0].flagged) {
+      return res.status(400).json({
+        error: "Message blocked by safety filter 🌸"
+      });
+    }
 
     // 🖼️ Generate image
     const img = await openai.images.generate({
@@ -109,3 +131,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
+
