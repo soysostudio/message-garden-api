@@ -18,9 +18,9 @@ function hashToSeed(str) {
   return h.readUInt32BE(0);
 }
 
-// 🔒 Prompt seguro por defecto (no usa contenido del usuario)
+// 🌸 Prompt seguro por defecto
 const SAFE_FALLBACK_PROMPT =
-  "An illustration of a single ethereal flower with translucent pastel petals and a soft luminous core, crafted from abstract glass and silk. In Japanese anime film realism, inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic, cinematic mood with smooth blending and delicate gradients; no harsh outlines. Surfaces glow subtly under natural light, vivid harmonious colors with gentle pastel depth. Completely isolated on a pure white background, no extra scenery. Square 1:1, high resolution, polished anime realism.";
+  "An illustration of a single simple flower with soft pastel petals and a golden center. Painted in Japanese anime film realism, inspired by Makoto Shinkai. Gentle lighting, natural highlights, and atmospheric shading. Poetic mood with smooth gradients; no harsh outlines. The flower glows subtly under natural light, vivid harmonious colors with delicate pastel tones. Completely isolated on a pure white background, no extra scenery. Square 1:1, high resolution, polished anime realism.";
 
 async function isFlaggedByModeration(text) {
   try {
@@ -30,8 +30,6 @@ async function isFlaggedByModeration(text) {
     });
     return !!(res.results && res.results[0]?.flagged);
   } catch (err) {
-    // Si falla moderación, preferimos ser conservadores y NO bloquear;
-    // devolvemos false para no romper el flujo.
     console.error("Moderation API error (non-blocking):", err);
     return false;
   }
@@ -77,10 +75,10 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // 🔍 Moderación del input del usuario (sin cambiar tu lógica)
+    // 🔍 Moderar input del usuario
     const userFlagged = await isFlaggedByModeration(clean);
 
-    // 🎨 Generate prompt (solo si el input no está flaggeado; si está flaggeado usamos fallback)
+    // 🎨 Generar prompt
     let flowerPrompt;
     if (!userFlagged) {
       const gpt = await openai.chat.completions.create({
@@ -88,9 +86,15 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            // ❗️Se conserva tu prompt original para no cambiar el estilo que ya funcionaba
-            content:
-              "You turn any concept into a brief, poetic description of a single flower. The flower must be clearly recognizable and may be made of or inspired by any material or idea (e.g., flowers, glass, fire, fabric). Describe only the flower (no environment, no other animals). Then place that description into this template, replacing (OBJECT): An illustration of (OBJECT) in Japanese anime film realism, inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. Surfaces glow subtly under natural light, with vivid, harmonious colors and gentle pastel depth. Completely isolated on a pure white background, no extra scenery. Square 1:1, high resolution, polished anime realism."
+            content: `You are an AI prompt designer that only creates descriptions of flowers. 
+Always describe a single flower in Japanese anime film realism style, inspired by Makoto Shinkai. 
+The flower must be safe, luminous, poetic, and cinematic. 
+The user’s text may inspire only the flower’s colors, petal shape, and overall mood. 
+Never describe people, body parts, animals, objects, food, politics, violence, nudity, or unsafe themes. 
+If the input is unsafe or irrelevant, ignore it and describe a simple pastel flower instead. 
+Keep the description concise. 
+For example: 
+"A delicate white flower with glowing petals that fade into soft lavender, shimmering under natural light."`
           },
           {
             role: "user",
@@ -101,18 +105,17 @@ export default async function handler(req, res) {
       flowerPrompt = (gpt.choices[0].message.content || "").trim();
     }
 
-    // Si el input estaba flaggeado o el prompt quedó vacío, usar fallback seguro
     if (userFlagged || !flowerPrompt) {
       flowerPrompt = SAFE_FALLBACK_PROMPT;
     }
 
-    // 🔍 Moderación del prompt final (por si GPT metió algo raro)
+    // 🔍 Moderar prompt final
     const promptFlagged = await isFlaggedByModeration(flowerPrompt);
     if (promptFlagged) {
       flowerPrompt = SAFE_FALLBACK_PROMPT;
     }
 
-    // 🖼️ Generate image con manejo de fallback si la API bloquea
+    // 🖼️ Generar imagen con fallback
     let actualPromptUsed = flowerPrompt;
     let pngBuffer;
 
@@ -125,38 +128,18 @@ export default async function handler(req, res) {
       });
       pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
     } catch (err) {
-      // Si el generador de imágenes lo bloquea, reintenta con el prompt seguro
-      const code = err?.code || err?.error?.code;
-      const status = err?.status;
-      const msg = err?.message || err?.error?.message || "";
-
-      const looksLikeModerationBlock =
-        code === "moderation_blocked" ||
-        (status === 400 && /safety system|moderation/i.test(msg));
-
-      if (looksLikeModerationBlock) {
-        try {
-          actualPromptUsed = SAFE_FALLBACK_PROMPT;
-          const img2 = await openai.images.generate({
-            model: "gpt-image-1",
-            prompt: actualPromptUsed,
-            size: "1024x1024",
-            background: "transparent"
-          });
-          pngBuffer = Buffer.from(img2.data[0].b64_json, "base64");
-        } catch (err2) {
-          console.error("Images fallback failed:", err2);
-          return res
-            .status(400)
-            .json({ error: "Blocked by safety filter 🌸" });
-        }
-      } else {
-        console.error("Images API error:", err);
-        return res.status(500).json({ error: "Image generation error" });
-      }
+      console.error("Image blocked, retrying with fallback...", err);
+      actualPromptUsed = SAFE_FALLBACK_PROMPT;
+      const img2 = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: actualPromptUsed,
+        size: "1024x1024",
+        background: "transparent"
+      });
+      pngBuffer = Buffer.from(img2.data[0].b64_json, "base64");
     }
 
-    // ☁️ Upload to Supabase
+    // ☁️ Subir a Supabase
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
     await supabase.storage
       .from(SUPABASE_BUCKET)
@@ -167,7 +150,7 @@ export default async function handler(req, res) {
       .getPublicUrl(filename);
     const image_url = pub.publicUrl;
 
-    // 🗄️ Insert in Supabase DB
+    // 🗄️ Guardar en DB
     await supabase.from("blooms").insert({
       message: clean,
       image_url,
@@ -176,9 +159,7 @@ export default async function handler(req, res) {
       ip
     });
 
-    return res
-      .status(200)
-      .json({ ok: true, image_url, prompt: actualPromptUsed });
+    return res.status(200).json({ ok: true, image_url, prompt: actualPromptUsed });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Server error", details: e.message });
