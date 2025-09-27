@@ -58,7 +58,7 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // 🎨 Generate safe flower prompt
+    // 🎨 Generate safe prompt
     const gpt = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -82,15 +82,21 @@ Square 1:1, high resolution, polished anime realism.`
         }
       ]
     });
-
     const flowerPrompt = gpt.choices[0].message.content.trim();
 
-    // 🔍 Moderation check before image generation
-    const moderation = await openai.moderations.create({
-      model: "omni-moderation-latest",
-      input: flowerPrompt
-    });
-    if (moderation.results[0].flagged) {
+    // 🔍 Moderation check
+    let moderation;
+    try {
+      moderation = await openai.moderations.create({
+        model: "omni-moderation-latest",
+        input: flowerPrompt
+      });
+    } catch (err) {
+      console.error("Moderation API failed:", err);
+      return res.status(500).json({ error: "Moderation service error" });
+    }
+
+    if (moderation.results && moderation.results[0].flagged) {
       return res.status(400).json({
         error: "Message blocked by safety filter 🌸"
       });
@@ -103,32 +109,5 @@ Square 1:1, high resolution, polished anime realism.`
       size: "1024x1024",
       background: "transparent"
     });
-    const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
-
-    // ☁️ Upload to Supabase
-    const filename = `bloomAI_${Date.now()}_${seed}.png`;
-    await supabase.storage
-      .from(SUPABASE_BUCKET)
-      .upload(filename, pngBuffer, { contentType: "image/png" });
-
-    const { data: pub } = supabase.storage
-      .from(SUPABASE_BUCKET)
-      .getPublicUrl(filename);
-    const image_url = pub.publicUrl;
-
-    // 🗄️ Insert in Supabase DB
-    await supabase.from("blooms").insert({
-      message: clean,
-      image_url,
-      seed,
-      style_version: 2,
-      ip
-    });
-
-    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "Server error", details: e.message });
-  }
-}
+    const pngBuffer = Buffer.from(img.
 
