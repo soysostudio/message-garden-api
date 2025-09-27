@@ -99,15 +99,7 @@ export default async function handler(req, res) {
     }
 
     // 🎨 Step 3: Build final flower prompt
-    const flowerPrompt = `
-An illustration of ${safeFlowerDesc}, 
-in the style of Japanese anime realism, inspired by Makoto Shinkai. 
-Soft yet vibrant lighting, natural highlights, and atmospheric shading. 
-Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. 
-Surfaces glow subtly under natural light, with vivid, harmonious colors and gentle pastel depth. 
-Completely isolated on a pure white background, no extra scenery. 
-Square 1:1, high resolution, polished anime realism.
-    `;
+    const flowerPrompt = `An illustration of ${safeFlowerDesc}, in the style of Japanese anime realism, inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. Surfaces glow subtly under natural light, with vivid, harmonious colors and gentle pastel depth. Completely isolated on a pure white background, no extra scenery. Square 1:1, high resolution, polished anime realism. `;
 
     // 🖼️ Step 4: Generate image
     const img = await openai.images.generate({
