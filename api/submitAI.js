@@ -66,7 +66,7 @@ export default async function handler(req, res) {
           role: "system",
           content: `You turn any concept into a brief, poetic description of a single flower. 
 The flower must always be safe and clearly recognizable. 
-⚠️ Never describe people, body parts, violence, nudity, politics, or food. 
+Never describe people, body parts, violence, nudity, politics, or food. 
 Only flowers or flowers inspired by abstract materials (glass, fire, fabric, etc). 
 Then place that description into this template, replacing (OBJECT): 
 An illustration of (OBJECT) in Japanese anime film realism, inspired by Makoto Shinkai. 
@@ -109,5 +109,32 @@ Square 1:1, high resolution, polished anime realism.`
       size: "1024x1024",
       background: "transparent"
     });
-    const pngBuffer = Buffer.from(img.
+    const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
+
+    // ☁️ Upload to Supabase
+    const filename = `bloomAI_${Date.now()}_${seed}.png`;
+    await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(filename, pngBuffer, { contentType: "image/png" });
+
+    const { data: pub } = supabase.storage
+      .from(SUPABASE_BUCKET)
+      .getPublicUrl(filename);
+    const image_url = pub.publicUrl;
+
+    // 🗄️ Insert in Supabase DB
+    await supabase.from("blooms").insert({
+      message: clean,
+      image_url,
+      seed,
+      style_version: 2,
+      ip
+    });
+
+    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Server error", details: e.message });
+  }
+}
 
