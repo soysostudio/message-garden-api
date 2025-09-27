@@ -83,9 +83,10 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `You only create poetic descriptions of flowers. 
-The user’s words may inspire the flower’s colors, petal shapes, textures, or mood. 
-Always output just one short line describing a single flower. 
+            content: `You only create short poetic descriptions of flowers.
+The user’s words may inspire the flower’s colors, petal shapes, textures, or mood.
+Do not describe objects literally, always reinterpret as floral qualities.
+Always output one single line describing a flower.
 Example: "A flower with golden layered petals glowing with warm earthy light."`
           },
           {
@@ -107,13 +108,11 @@ Example: "A flower with golden layered petals glowing with warm earthy light."`
     }
 
     // 🖼️ Step 3: Generate image from rewritten description
-    let actualPromptUsed = `An illustration of ${flowerPrompt} in the style of Japanese anime realism, inspired by Makoto Shinkai. 
-The object must be painted with soft yet vibrant lighting, natural highlights, and atmospheric shading. 
-Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. 
-Surfaces glow subtly under natural light, creating a luminous and immersive mood. 
-Colors must be vivid and harmonious, with rich depth and subtle pastel tones where needed, evoking the dreamy realism of anime films. 
-The object must be completely isolated on a plain pure white background, with no extra scenery. 
-Square format (1:1), high resolution, polished anime realism.`;
+    let actualPromptUsed = `An illustration of ${flowerPrompt} in Japanese anime realism, inspired by Makoto Shinkai.
+Soft vibrant lighting, natural highlights, cinematic shading.
+Smooth color blending, delicate gradients, glowing surfaces under natural light.
+Vivid harmonious colors with subtle pastels, dreamy anime film realism.
+Completely isolated on a plain white background. Square format, high resolution.`;
 
     let pngBuffer;
     try {
@@ -155,5 +154,6 @@ Square format (1:1), high resolution, polished anime realism.`;
     return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
+
 
 
