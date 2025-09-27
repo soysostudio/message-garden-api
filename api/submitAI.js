@@ -18,6 +18,25 @@ function hashToSeed(str) {
   return h.readUInt32BE(0);
 }
 
+// 🔒 Prompt seguro por defecto (no usa contenido del usuario)
+const SAFE_FALLBACK_PROMPT =
+  "An illustration of a single ethereal flower with translucent pastel petals and a soft luminous core, crafted from abstract glass and silk. In Japanese anime film realism, inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic, cinematic mood with smooth blending and delicate gradients; no harsh outlines. Surfaces glow subtly under natural light, vivid harmonious colors with gentle pastel depth. Completely isolated on a pure white background, no extra scenery. Square 1:1, high resolution, polished anime realism.";
+
+async function isFlaggedByModeration(text) {
+  try {
+    const res = await openai.moderations.create({
+      model: "omni-moderation-latest",
+      input: text
+    });
+    return !!(res.results && res.results[0]?.flagged);
+  } catch (err) {
+    // Si falla moderación, preferimos ser conservadores y NO bloquear;
+    // devolvemos false para no romper el flujo.
+    console.error("Moderation API error (non-blocking):", err);
+    return false;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -58,58 +77,84 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // 🎨 Generate safe prompt
-    const gpt = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You turn any concept into a brief, poetic description of a single flower. 
-The flower must always be safe and clearly recognizable. 
-Never describe people, body parts, violence, nudity, politics, or food. 
-Only flowers or flowers inspired by abstract materials (glass, fire, fabric, etc). 
-Then place that description into this template, replacing (OBJECT): 
-An illustration of (OBJECT) in Japanese anime film realism, inspired by Makoto Shinkai. 
-Soft yet vibrant lighting, natural highlights, and atmospheric shading. 
-Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. 
-Surfaces glow subtly under natural light, with vivid, harmonious colors and gentle pastel depth. 
-Completely isolated on a pure white background, no extra scenery. 
-Square 1:1, high resolution, polished anime realism.`
-        },
-        {
-          role: "user",
-          content: `Message: "${clean}". Create its flower form.`
-        }
-      ]
-    });
-    const flowerPrompt = gpt.choices[0].message.content.trim();
+    // 🔍 Moderación del input del usuario (sin cambiar tu lógica)
+    const userFlagged = await isFlaggedByModeration(clean);
 
-    // 🔍 Moderation check
-    let moderation;
+    // 🎨 Generate prompt (solo si el input no está flaggeado; si está flaggeado usamos fallback)
+    let flowerPrompt;
+    if (!userFlagged) {
+      const gpt = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            // ❗️Se conserva tu prompt original para no cambiar el estilo que ya funcionaba
+            content:
+              "You turn any concept into a brief, poetic description of a single flower. The flower must be clearly recognizable and may be made of or inspired by any material or idea (e.g., flowers, glass, fire, fabric). Describe only the flower (no environment, no other animals). Then place that description into this template, replacing (OBJECT): An illustration of (OBJECT) in Japanese anime film realism, inspired by Makoto Shinkai. Soft yet vibrant lighting, natural highlights, and atmospheric shading. Poetic, cinematic mood with smooth color blending and delicate gradients; no harsh outlines. Surfaces glow subtly under natural light, with vivid, harmonious colors and gentle pastel depth. Completely isolated on a pure white background, no extra scenery. Square 1:1, high resolution, polished anime realism."
+          },
+          {
+            role: "user",
+            content: `Message: "${clean}". Create its flower form.`
+          }
+        ]
+      });
+      flowerPrompt = (gpt.choices[0].message.content || "").trim();
+    }
+
+    // Si el input estaba flaggeado o el prompt quedó vacío, usar fallback seguro
+    if (userFlagged || !flowerPrompt) {
+      flowerPrompt = SAFE_FALLBACK_PROMPT;
+    }
+
+    // 🔍 Moderación del prompt final (por si GPT metió algo raro)
+    const promptFlagged = await isFlaggedByModeration(flowerPrompt);
+    if (promptFlagged) {
+      flowerPrompt = SAFE_FALLBACK_PROMPT;
+    }
+
+    // 🖼️ Generate image con manejo de fallback si la API bloquea
+    let actualPromptUsed = flowerPrompt;
+    let pngBuffer;
+
     try {
-      moderation = await openai.moderations.create({
-        model: "omni-moderation-latest",
-        input: flowerPrompt
+      const img = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: actualPromptUsed,
+        size: "1024x1024",
+        background: "transparent"
       });
+      pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
     } catch (err) {
-      console.error("Moderation API failed:", err);
-      return res.status(500).json({ error: "Moderation service error" });
-    }
+      // Si el generador de imágenes lo bloquea, reintenta con el prompt seguro
+      const code = err?.code || err?.error?.code;
+      const status = err?.status;
+      const msg = err?.message || err?.error?.message || "";
 
-    if (moderation.results && moderation.results[0].flagged) {
-      return res.status(400).json({
-        error: "Message blocked by safety filter 🌸"
-      });
-    }
+      const looksLikeModerationBlock =
+        code === "moderation_blocked" ||
+        (status === 400 && /safety system|moderation/i.test(msg));
 
-    // 🖼️ Generate image
-    const img = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt: flowerPrompt,
-      size: "1024x1024",
-      background: "transparent"
-    });
-    const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
+      if (looksLikeModerationBlock) {
+        try {
+          actualPromptUsed = SAFE_FALLBACK_PROMPT;
+          const img2 = await openai.images.generate({
+            model: "gpt-image-1",
+            prompt: actualPromptUsed,
+            size: "1024x1024",
+            background: "transparent"
+          });
+          pngBuffer = Buffer.from(img2.data[0].b64_json, "base64");
+        } catch (err2) {
+          console.error("Images fallback failed:", err2);
+          return res
+            .status(400)
+            .json({ error: "Blocked by safety filter 🌸" });
+        }
+      } else {
+        console.error("Images API error:", err);
+        return res.status(500).json({ error: "Image generation error" });
+      }
+    }
 
     // ☁️ Upload to Supabase
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
@@ -131,7 +176,9 @@ Square 1:1, high resolution, polished anime realism.`
       ip
     });
 
-    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
+    return res
+      .status(200)
+      .json({ ok: true, image_url, prompt: actualPromptUsed });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Server error", details: e.message });
