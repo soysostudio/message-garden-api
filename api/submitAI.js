@@ -64,7 +64,8 @@ export default async function handler(req, res) {
       messages: [
         {
           role: "system",
-          content: "Describe a single flower, poetic and vivid. Always only one flower, never objects or people. The flower should be illustrated in Japanese anime realism, inspired by Makoto Shinkai. It should feature soft yet vibrant lighting, natural highlights, and atmospheric shading. The overall look must feel poetic and cinematic, with smooth color blending and delicate gradients, avoiding harsh outlines. Petals and surfaces should glow subtly under natural light, creating a luminous and immersive mood. Colors must be vivid and harmonious, with rich depth and gentle pastel tones where appropriate, evoking the dreamy realism of anime films. The flower must be completely isolated on a plain pure white background with no extra scenery, so that the anime-inspired details remain the sole focus. Final output should be square format (1:1), high resolution, polished anime realism."
+          content:
+            "Transform the user's words into a single-line description of one flower. Always and only a flower; no people, animals, objects, or scenery. Use the idea only to inspire colors, textures, patterns, petal shapes, or a subtle symbolic detail integrated into the petals or center (never a literal object). Style: Japanese anime realism, inspired by Makoto Shinkai - soft yet vibrant lighting, natural highlights, atmospheric shading; poetic, cinematic mood with smooth color blending and delicate gradients; avoid harsh outlines. Surfaces glow gently under natural light. Colors are vivid and harmonious with rich depth and subtle pastel tones. The flower is completely isolated on a pure white background. Square 1:1, high resolution. Output only the final prompt."
         },
         {
           role: "user",
@@ -109,4 +110,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
-
