@@ -18,6 +18,19 @@ function hashToSeed(str) {
   return h.readUInt32BE(0);
 }
 
+// 🌸 Fallback description
+const SAFE_FALLBACK_FLOWER =
+  "A single delicate pastel flower with soft glowing petals fading into white light.";
+
+// 🌸 Style wrapper function
+function buildStyledPrompt(flowerDescription) {
+  return `An illustration of ${flowerDescription} in the style of Japanese anime realism, inspired by Makoto Shinkai.  
+Soft vibrant lighting, natural highlights, cinematic shading.  
+Smooth gradients, glowing surfaces, dreamy anime film realism.  
+The flower must be completely isolated on a plain pure white background, with no extra scenery.  
+Square format (1:1), high resolution, polished anime realism.`;
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -59,25 +72,41 @@ export default async function handler(req, res) {
     const seed = hashToSeed(clean);
 
     // 🎨 Generate prompt
-    const gpt = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: "Describe a single flower, poetic and vivid.  Always only a flower, no objects or people. An illustration of (OBJECT) in Japanese anime realism, inspired by Makoto Shinkai.  Soft vibrant lighting, natural highlights, cinematic shading.  Smooth gradients, glowing under natural light.  Vivid harmonious colors, dreamy anime film realism.  Isolated on a pure white background. Square format, high resolution."
-        },
-        {
-          role: "user",
-          content: `Message: "${clean}". Create its flower form.`
-        }
-      ]
-    });
-    const flowerPrompt = gpt.choices[0].message.content.trim();
+    let flowerDescription = SAFE_FALLBACK_FLOWER;
+    try {
+      const gpt = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You rewrite user words into a poetic description of a single flower.  
+Always only one flower, completely isolated, with no background, no people, and no objects.  
+The description should be vivid but short, focusing on colors, petal shapes, or mood.  
+Example: "A flower with golden petals glowing in soft light."`
+          },
+          {
+            role: "user",
+            content: `Message: "${clean}". Create its flower form.`
+          }
+        ]
+      });
+      flowerDescription = (gpt.choices[0].message.content || "").trim();
+    } catch (err) {
+      console.error("GPT rewrite failed, using fallback:", err);
+    }
+
+    // 🖼️ Build styled prompt (normal or fallback)
+    let finalPrompt;
+    if (!flowerDescription) {
+      finalPrompt = buildStyledPrompt(SAFE_FALLBACK_FLOWER);
+    } else {
+      finalPrompt = buildStyledPrompt(flowerDescription);
+    }
 
     // 🖼️ Generate image
     const img = await openai.images.generate({
       model: "gpt-image-1",
-      prompt: flowerPrompt,
+      prompt: finalPrompt,
       size: "1024x1024",
       background: "transparent"
     });
@@ -99,15 +128,13 @@ export default async function handler(req, res) {
       message: clean,
       image_url,
       seed,
-      style_version: 2,
+      style_version: 3,
       ip
     });
 
-    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
+    return res.status(200).json({ ok: true, image_url, prompt: finalPrompt });
   } catch (e) {
     console.error(e);
     return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
-
-
