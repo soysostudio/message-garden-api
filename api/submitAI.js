@@ -18,23 +18,25 @@ function hashToSeed(str) {
   return h.readUInt32BE(0);
 }
 
-// 🌸 Fallback description
+// 🌸 Fallbacks
 const SAFE_FALLBACK_DESC =
   "with soft pastel petals glowing gently in the light";
+const SAFE_FALLBACK_PROMPT =
+  "A single delicate pastel flower with soft glowing petals, Japanese anime realism, Makoto Shinkai style, isolated on pure white background, high resolution.";
 
-// 🧹 Sanitize GPT output
+// 🧹 Sanitizer
 function sanitizeDescription(desc = "") {
   return desc
-    .replace(/^["'“”]+|["'“”]+$/g, "") // quitar comillas
-    .replace(/\s+/g, " ")              // colapsar espacios/nuevas líneas
+    .replace(/^["'“”]+|["'“”]+$/g, "")
+    .replace(/\s+/g, " ")
     .trim()
-    .slice(0, 200);                    // limitar longitud
+    .slice(0, 200);
 }
 
 // 🌸 Compact style builder
 function buildStyledPrompt(description) {
   const d = sanitizeDescription(description || SAFE_FALLBACK_DESC);
-  return `A single flower ${d}, in Japanese anime realism inspired by Makoto Shinkai, soft vibrant lighting, smooth gradients, dreamy pastel colors, isolated on a pure white background, square high resolution.`;
+  return `A single flower ${d}, Japanese anime realism, Makoto Shinkai style, soft vibrant lighting, dreamy cinematic shading, smooth gradients, pastel colors, isolated on pure white background, square high resolution.`;
 }
 
 export default async function handler(req, res) {
@@ -86,18 +88,11 @@ export default async function handler(req, res) {
           {
             role: "system",
             content: `You transform the user's words into a poetic description of a single flower.  
-Always describe only one flower, isolated, with no background or objects.  
-The user’s text should inspire the flower’s colors, petal shapes, textures, or mood.  
-Keep it short, just a phrase starting with "with..." or similar.  
-
-Examples:  
-User: "pizza" → "with warm golden petals dotted with red speckles"  
-User: "cats" → "with soft curved petals and a gentle playful mood"`
+Always describe one isolated flower, no background or objects.  
+The user’s text should inspire the flower’s colors, petals, textures, or mood.  
+Keep it short, just a phrase like "with golden petals glowing in soft light".`
           },
-          {
-            role: "user",
-            content: clean
-          }
+          { role: "user", content: clean }
         ]
       });
       flowerLine = (gpt.choices[0].message.content || "").trim();
@@ -106,9 +101,9 @@ User: "cats" → "with soft curved petals and a gentle playful mood"`
     }
 
     // 🎨 Step 2: Build styled prompt
-    const finalPrompt = buildStyledPrompt(flowerLine);
+    let finalPrompt = buildStyledPrompt(flowerLine);
 
-    // 🖼️ Step 3: Generate image
+    // 🖼️ Step 3: Generate image (with retry)
     let pngBuffer;
     try {
       const img = await openai.images.generate({
@@ -120,10 +115,10 @@ User: "cats" → "with soft curved petals and a gentle playful mood"`
       pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
     } catch (err) {
       console.error("Image generation failed:", err);
-      // fallback safe prompt
+      // retry with ultra-safe fallback
       const img2 = await openai.images.generate({
         model: "gpt-image-1",
-        prompt: buildStyledPrompt(SAFE_FALLBACK_DESC),
+        prompt: SAFE_FALLBACK_PROMPT,
         size: "1024x1024",
         background: "transparent"
       });
@@ -146,15 +141,13 @@ User: "cats" → "with soft curved petals and a gentle playful mood"`
       message: clean,
       image_url,
       seed,
-      style_version: 9,
+      style_version: 10,
       ip
     });
 
     return res.status(200).json({ ok: true, image_url, prompt: finalPrompt });
   } catch (e) {
     console.error(e);
-    return res
-      .status(500)
-      .json({ error: "Server error", details: e.message });
+    return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
