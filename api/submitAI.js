@@ -20,15 +20,11 @@ function hashToSeed(str) {
 
 // 🌸 Fallback description
 const SAFE_FALLBACK_FLOWER =
-  "A single delicate pastel flower with soft glowing petals fading into white light.";
+  "a delicate pastel flower with soft glowing petals fading into light";
 
-// 🌸 Style wrapper function
+// 🌸 Shorter style wrapper
 function buildStyledPrompt(flowerDescription) {
-  return `An illustration of ${flowerDescription} in the style of Japanese anime realism, inspired by Makoto Shinkai.  
-Soft vibrant lighting, natural highlights, cinematic shading.  
-Smooth gradients, glowing surfaces, dreamy anime film realism.  
-The flower must be completely isolated on a plain pure white background, with no extra scenery.  
-Square format (1:1), high resolution, polished anime realism.`;
+  return `An illustration of ${flowerDescription} in Japanese anime realism, inspired by Makoto Shinkai.  Soft vibrant lighting, natural highlights, cinematic shading.  Smooth gradients, glowing surfaces, dreamy anime realism.  The flower must be completely isolated on a pure white background, no scenery.  Square format (1:1), high resolution.`;
 }
 
 export default async function handler(req, res) {
@@ -71,7 +67,7 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // 🎨 Generate prompt
+    // 🎨 Generate description with GPT
     let flowerDescription = SAFE_FALLBACK_FLOWER;
     try {
       const gpt = await openai.chat.completions.create({
@@ -79,14 +75,11 @@ export default async function handler(req, res) {
         messages: [
           {
             role: "system",
-            content: `You rewrite user words into a poetic description of a single flower.  
-Always only one flower, completely isolated, with no background, no people, and no objects.  
-The description should be vivid but short, focusing on colors, petal shapes, or mood.  
-Example: "A flower with golden petals glowing in soft light."`
+            content: `You rewrite user words into a poetic description of a single flower.  Always only one flower, completely isolated, with no background, no people, and no objects.  The description should be vivid but short, focusing on colors, petal shapes, or mood.  Example: "a flower with golden petals glowing in soft light"`
           },
           {
             role: "user",
-            content: `Message: "${clean}". Create its flower form.`
+            content: clean
           }
         ]
       });
@@ -96,12 +89,9 @@ Example: "A flower with golden petals glowing in soft light."`
     }
 
     // 🖼️ Build styled prompt (normal or fallback)
-    let finalPrompt;
-    if (!flowerDescription) {
-      finalPrompt = buildStyledPrompt(SAFE_FALLBACK_FLOWER);
-    } else {
-      finalPrompt = buildStyledPrompt(flowerDescription);
-    }
+    let finalPrompt = buildStyledPrompt(
+      flowerDescription || SAFE_FALLBACK_FLOWER
+    );
 
     // 🖼️ Generate image
     const img = await openai.images.generate({
@@ -128,13 +118,16 @@ Example: "A flower with golden petals glowing in soft light."`
       message: clean,
       image_url,
       seed,
-      style_version: 3,
+      style_version: 4,
       ip
     });
 
     return res.status(200).json({ ok: true, image_url, prompt: finalPrompt });
   } catch (e) {
     console.error(e);
-    return res.status(500).json({ error: "Server error", details: e.message });
+    return res
+      .status(500)
+      .json({ error: "Server error", details: e.message });
   }
 }
+
