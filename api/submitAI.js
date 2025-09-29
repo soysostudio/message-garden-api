@@ -18,12 +18,6 @@ function hashToSeed(str) {
   return h.readUInt32BE(0);
 }
 
-// 🌸 Compact style block
-function buildPrompt(detail) {
-  const d = (detail || "with soft pastel petals glowing gently").trim();
-  return `A single flower ${d}, Japanese anime realism, Makoto Shinkai style, soft vibrant lighting, smooth gradients, dreamy cinematic mood, vivid harmonious pastel colors, isolated on a pure white background, square high resolution.`;
-}
-
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -39,7 +33,7 @@ export default async function handler(req, res) {
 
   try {
     const { message } = req.body || {};
-    const clean = (message || "").toString().trim().slice(0, 300);
+    const clean = (message || "").toString().trim().slice(0, 500);
     if (!clean) return res.status(400).json({ error: "Message required" });
 
     const ip =
@@ -64,50 +58,30 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // 🎨 Step 1: GPT rewrite → short detail only
-    let flowerDetail = "with soft pastel petals glowing gently";
-    try {
-      const gpt = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Describe a single flower in one short poetic phrase. 
-Always only a flower. 
-If the user mentions an object or concept, integrate it symbolically into the petals, colors, or center — never replacing the flower. 
-Return only the short detail, like: "with glowing golden petals etched with clock patterns".`
-          },
-          { role: "user", content: clean }
-        ]
-      });
-      flowerDetail = (gpt.choices[0].message.content || "").trim();
-    } catch (err) {
-      console.error("GPT rewrite failed, using fallback:", err);
-    }
+    // 🎨 Generate prompt
+    const gpt = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "Describe a single flower, poetic and vivid.  Always only a flower, no objects or people. An illustration of (OBJECT) in Japanese anime realism, inspired by Makoto Shinkai.  Soft vibrant lighting, natural highlights, cinematic shading.  Smooth gradients, glowing under natural light.  Vivid harmonious colors, dreamy anime film realism.  Isolated on a pure white background. Square format, high resolution."
+        },
+        {
+          role: "user",
+          content: `Message: "${clean}". Create its flower form.`
+        }
+      ]
+    });
+    const flowerPrompt = gpt.choices[0].message.content.trim();
 
-    // 🎨 Step 2: Build full prompt with style
-    const finalPrompt = buildPrompt(flowerDetail);
-
-    // 🖼️ Step 3: Generate image
-    let pngBuffer;
-    try {
-      const img = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt: finalPrompt,
-        size: "1024x1024",
-        background: "transparent"
-      });
-      pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
-    } catch (err) {
-      console.error("Image generation failed, retrying with fallback:", err);
-      const img2 = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt: buildPrompt("with soft pastel petals glowing gently"),
-        size: "1024x1024",
-        background: "transparent"
-      });
-      pngBuffer = Buffer.from(img2.data[0].b64_json, "base64");
-    }
+    // 🖼️ Generate image
+    const img = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt: flowerPrompt,
+      size: "1024x1024",
+      background: "transparent"
+    });
+    const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
 
     // ☁️ Upload to Supabase
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
@@ -120,20 +94,19 @@ Return only the short detail, like: "with glowing golden petals etched with cloc
       .getPublicUrl(filename);
     const image_url = pub.publicUrl;
 
-    // 🗄️ Save to DB
+    // 🗄️ Insert in Supabase DB
     await supabase.from("blooms").insert({
       message: clean,
       image_url,
       seed,
-      style_version: 4,
+      style_version: 2,
       ip
     });
 
-    return res.status(200).json({ ok: true, image_url, prompt: finalPrompt });
+    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
   } catch (e) {
     console.error(e);
-    return res
-      .status(500)
-      .json({ error: "Server error", details: e.message });
+    return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
+
