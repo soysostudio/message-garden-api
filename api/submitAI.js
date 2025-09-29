@@ -18,31 +18,27 @@ function hashToSeed(str) {
   return h.readUInt32BE(0);
 }
 
-// ----- NEW: small helpers for safe prompt building -----
+// 🌸 Fallback description
 const SAFE_FALLBACK_DESC =
   "a delicate pastel flower with soft glowing petals fading into light";
 
+// 🌸 Sanitizer
 function sanitizeDescription(desc = "") {
   return desc
     .replace(/^["'“”]+|["'“”]+$/g, "") // strip quotes
     .replace(/\s+/g, " ")              // collapse whitespace/newlines
     .trim()
-    .slice(0, 240);                    // keep it compact
+    .slice(0, 240);                    // keep compact
 }
 
+// 🌸 Style block (short + consistent)
 function buildStyledPrompt(description) {
   const d = sanitizeDescription(description || SAFE_FALLBACK_DESC);
-  // NOTE: do NOT start with "An illustration of ..."
-  const prompt = `${d}. In Japanese anime realism, Makoto Shinkai style. ` +
-    `Soft vibrant lighting, natural highlights, cinematic shading, smooth gradients. ` +
-    `Dreamy anime film realism with vivid harmonious colors and pastel tones. ` +
-    `Single isolated flower on a pure white background. Square 1:1, high resolution.`;
-  // keep final prompt tidy and not too long
-  return prompt.replace(/\s+/g, " ").trim().slice(0, 600);
+  return `${d}. In Japanese anime realism, Makoto Shinkai style. 
+Soft vibrant lighting, cinematic shading, smooth gradients. 
+Dreamy anime film realism with vivid harmonious colors and pastel tones. 
+Single isolated flower on pure white background. Square high resolution.`;
 }
-
-// Short, safe fallback in the same style (used only on safety 400)
-const SAFE_FALLBACK_PROMPT = buildStyledPrompt(SAFE_FALLBACK_DESC);
 
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
@@ -66,7 +62,7 @@ export default async function handler(req, res) {
       req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
       req.socket.remoteAddress;
 
-    // Limits (unchanged)
+    // 🌸 Limit check
     const { count } = await supabase
       .from("blooms")
       .select("*", { count: "exact", head: true });
@@ -84,27 +80,39 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // ----- GPT step (unchanged system intent) -----
-    const gpt = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            'Describe a single flower, poetic and vivid.  Always only a flower, no objects or people. An illustration of (OBJECT) in Japanese anime realism, inspired by Makoto Shinkai.  Soft vibrant lighting, natural highlights, cinematic shading.  Smooth gradients, glowing under natural light.  Vivid harmonious colors, dreamy anime film realism.  Isolated on a pure white background. Square format, high resolution.'
-        },
-        {
-          role: "user",
-          content: `Message: "${clean}". Create its flower form.`
-        }
-      ]
-    });
+    // 🎨 Step 1: GPT rewrite (now tied to user input)
+    let flowerLine = SAFE_FALLBACK_DESC;
+    try {
+      const gpt = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You transform the user’s words into a poetic description of a single flower.  
+Always describe only one flower, isolated, with no background or objects.  
+The user’s text should inspire the flower’s colors, petal shapes, textures, or mood.  
+Do not describe the object literally (e.g. don't put pizza or cats inside the flower).  
+Instead, reinterpret them into safe floral qualities.  
 
-    // ----- NEW: build final prompt safely -----
-    const flowerLine = gpt.choices[0].message.content || "";
+Examples:  
+User: "pizza" → "a flower with warm golden petals dotted with red speckles, glowing playfully"  
+User: "cats" → "a flower with soft curved petals and a gentle playful mood"`
+          },
+          {
+            role: "user",
+            content: clean
+          }
+        ]
+      });
+      flowerLine = (gpt.choices[0].message.content || "").trim();
+    } catch (err) {
+      console.error("GPT rewrite failed, using fallback:", err);
+    }
+
+    // 🎨 Step 2: Build styled prompt
     const finalPrompt = buildStyledPrompt(flowerLine);
 
-    // Images generate with safety-aware retry (unchanged behavior)
+    // 🖼️ Step 3: Generate image
     let pngBuffer;
     try {
       const img = await openai.images.generate({
@@ -115,34 +123,18 @@ export default async function handler(req, res) {
       });
       pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
     } catch (err) {
-      const status = err?.status;
-      const code = err?.code || err?.error?.code;
-      const msg = err?.message || err?.error?.message || "";
-      const looksSafety =
-        code === "moderation_blocked" ||
-        (status === 400 && /safety|moderation/i.test(msg));
-
-      if (!looksSafety) {
-        console.error("Images API error:", err);
-        return res.status(500).json({ error: "Image generation error" });
-      }
-
-      // Retry with compact, styled fallback
-      try {
-        const img2 = await openai.images.generate({
-          model: "gpt-image-1",
-          prompt: SAFE_FALLBACK_PROMPT,
-          size: "1024x1024",
-          background: "transparent"
-        });
-        pngBuffer = Buffer.from(img2.data[0].b64_json, "base64");
-      } catch (err2) {
-        console.error("Images fallback failed:", err2);
-        return res.status(400).json({ error: "Blocked by safety filter 🌸" });
-      }
+      console.error("Image generation failed:", err);
+      // fallback in case of error
+      const img2 = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: buildStyledPrompt(SAFE_FALLBACK_DESC),
+        size: "1024x1024",
+        background: "transparent"
+      });
+      pngBuffer = Buffer.from(img2.data[0].b64_json, "base64");
     }
 
-    // Upload (unchanged)
+    // ☁️ Upload to Supabase
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
     await supabase.storage
       .from(SUPABASE_BUCKET)
@@ -153,12 +145,12 @@ export default async function handler(req, res) {
       .getPublicUrl(filename);
     const image_url = pub.publicUrl;
 
-    // Insert (unchanged)
+    // 🗄️ Save to DB
     await supabase.from("blooms").insert({
       message: clean,
       image_url,
       seed,
-      style_version: 6,
+      style_version: 7,
       ip
     });
 
