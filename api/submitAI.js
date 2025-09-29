@@ -87,4 +87,25 @@ export default async function handler(req, res) {
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
     await supabase.storage
       .from(SUPABASE_BUCKET)
-      .upload(filename, pngBuffer, { conten
+      .upload(filename, pngBuffer, { contentType: "image/png" });
+
+    const { data: pub } = supabase.storage
+      .from(SUPABASE_BUCKET)
+      .getPublicUrl(filename);
+    const image_url = pub.publicUrl;
+
+    // 🗄️ Insert in Supabase DB
+    await supabase.from("blooms").insert({
+      message: clean,
+      image_url,
+      seed,
+      style_version: 3,
+      ip
+    });
+
+    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Server error", details: e.message });
+  }
+}
