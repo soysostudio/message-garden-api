@@ -69,7 +69,7 @@ export default async function handler(req, res) {
         {
           role: "system",
           content:
-            'Describe a single flower, poetic and vivid.  Always only a flower, no objects or people. An illustration of (OBJECT) in Japanese anime realism, inspired by Makoto Shinkai.  Soft vibrant lighting, natural highlights, cinematic shading.  Smooth gradients, glowing under natural light.  Vivid harmonious colors, dreamy anime film realism.  Isolated on a pure white background. Square format, high resolution.'
+            'Describe a single flower, poetic and vivid.  Always only one flower, completely isolated, with no background, no scenery, and no other objects or people.  An illustration of (OBJECT) in the style of Japanese anime realism, inspired by Makoto Shinkai.  The flower must be painted with soft yet vibrant lighting, natural highlights, and atmospheric shading.  The style should feel poetic and cinematic, with smooth color blending and delicate gradients, avoiding harsh outlines. Petals and surfaces should glow gently under natural light, creating a luminous and immersive mood.  Colors must be vivid and harmonious, with rich depth and subtle pastel tones where needed, evoking the dreamy realism of anime films. The flower must be completely isolated on a plain pure white background, with no extra scenery or details, so that the anime-inspired details are the sole focus. polished anime realism.'
         },
         {
           role: "user",
