@@ -18,6 +18,25 @@ function hashToSeed(str) {
   return h.readUInt32BE(0);
 }
 
+// 🌸 Fallback description
+const SAFE_FALLBACK_DESC =
+  "with soft pastel petals glowing gently in the light";
+
+// 🧹 Sanitize GPT output
+function sanitizeDescription(desc = "") {
+  return desc
+    .replace(/^["'“”]+|["'“”]+$/g, "") // quitar comillas
+    .replace(/\s+/g, " ")              // colapsar espacios/nuevas líneas
+    .trim()
+    .slice(0, 200);                    // limitar longitud
+}
+
+// 🌸 Compact style builder
+function buildStyledPrompt(description) {
+  const d = sanitizeDescription(description || SAFE_FALLBACK_DESC);
+  return `A single flower ${d}, in Japanese anime realism inspired by Makoto Shinkai, soft vibrant lighting, smooth gradients, dreamy pastel colors, isolated on a pure white background, square high resolution.`;
+}
+
 export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -33,7 +52,7 @@ export default async function handler(req, res) {
 
   try {
     const { message } = req.body || {};
-    const clean = (message || "").toString().trim().slice(0, 500);
+    const clean = (message || "").toString().trim().slice(0, 300);
     if (!clean) return res.status(400).json({ error: "Message required" });
 
     const ip =
@@ -58,35 +77,58 @@ export default async function handler(req, res) {
 
     const seed = hashToSeed(clean);
 
-    // 🎨 Generate prompt with GPT (style embedded + one-line)
-    const gpt = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `Transform the user's words into a single-line descriptive prompt of one flower. The description must always be a single flower, isolated, no objects or people. Embed it into this style template, outputting only the final prompt, no quotes: An illustration of (OBJECT) in Japanese anime realism, inspired by Makoto Shinkai. Soft vibrant lighting, natural highlights, cinematic shading. Smooth gradients, glowing under natural light. Vivid harmonious colors, dreamy anime film realism. Isolated on a pure white background. Square format, high resolution.`
-        },
-        {
-          role: "user",
-          content: `Message: "${clean}". Create its flower form.`
-        }
-      ]
-    });
+    // 🎨 Step 1: GPT rewrite (short flower description)
+    let flowerLine = SAFE_FALLBACK_DESC;
+    try {
+      const gpt = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: `You transform the user's words into a poetic description of a single flower.  
+Always describe only one flower, isolated, with no background or objects.  
+The user’s text should inspire the flower’s colors, petal shapes, textures, or mood.  
+Keep it short, just a phrase starting with "with..." or similar.  
 
-    // 🧹 Sanitize GPT output
-    const flowerPrompt = (gpt.choices[0].message.content || "")
-      .replace(/\n+/g, " ")   // colapsa saltos de línea
-      .replace(/["“”]/g, "") // quita comillas raras
-      .trim();
+Examples:  
+User: "pizza" → "with warm golden petals dotted with red speckles"  
+User: "cats" → "with soft curved petals and a gentle playful mood"`
+          },
+          {
+            role: "user",
+            content: clean
+          }
+        ]
+      });
+      flowerLine = (gpt.choices[0].message.content || "").trim();
+    } catch (err) {
+      console.error("GPT rewrite failed, using fallback:", err);
+    }
 
-    // 🖼️ Generate image
-    const img = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt: flowerPrompt,
-      size: "1024x1024",
-      background: "transparent"
-    });
-    const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
+    // 🎨 Step 2: Build styled prompt
+    const finalPrompt = buildStyledPrompt(flowerLine);
+
+    // 🖼️ Step 3: Generate image
+    let pngBuffer;
+    try {
+      const img = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: finalPrompt,
+        size: "1024x1024",
+        background: "transparent"
+      });
+      pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
+    } catch (err) {
+      console.error("Image generation failed:", err);
+      // fallback safe prompt
+      const img2 = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt: buildStyledPrompt(SAFE_FALLBACK_DESC),
+        size: "1024x1024",
+        background: "transparent"
+      });
+      pngBuffer = Buffer.from(img2.data[0].b64_json, "base64");
+    }
 
     // ☁️ Upload to Supabase
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
@@ -99,16 +141,16 @@ export default async function handler(req, res) {
       .getPublicUrl(filename);
     const image_url = pub.publicUrl;
 
-    // 🗄️ Insert in Supabase DB
+    // 🗄️ Save to DB
     await supabase.from("blooms").insert({
       message: clean,
       image_url,
       seed,
-      style_version: 8,
+      style_version: 9,
       ip
     });
 
-    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
+    return res.status(200).json({ ok: true, image_url, prompt: finalPrompt });
   } catch (e) {
     console.error(e);
     return res
