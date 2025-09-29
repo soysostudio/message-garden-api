@@ -64,8 +64,7 @@ export default async function handler(req, res) {
       messages: [
         {
           role: "system",
-          content:
-            "Transform the user's words into a single-line description of one flower. Always and only a flower; no people, animals, objects, or scenery. Use the idea only to inspire colors, textures, patterns, petal shapes, or a subtle symbolic detail integrated into the petals or center (never a literal object). Style: Japanese anime realism, inspired by Makoto Shinkai - soft yet vibrant lighting, natural highlights, atmospheric shading; poetic, cinematic mood with smooth color blending and delicate gradients; avoid harsh outlines. Surfaces glow gently under natural light. Colors are vivid and harmonious with rich depth and subtle pastel tones. The flower is completely isolated on a pure white background. Square 1:1, high resolution. Output only the final prompt."
+          content: `Transform the user's words into a single-line description of one flower. The flower must always remain the base subject, isolated, with no scenery, no people, and no animals. If the user mentions an object, concept, or feeling, reinterpret it as patterns, textures, colors, or symbolic details that are naturally integrated into the flower’s petals or center — never replacing the flower itself. Examples: User: pizza → A single flower with warm golden petals textured like melted cheese, dotted with playful red accents like pepperoni. User: compass → A single flower with pale blue petals, its glowing center subtly shaped like a compass. User: math → A single flower with ivory petals inscribed with faint glowing mathematical symbols. User: hope → A single flower with radiant golden petals and a luminous core symbolizing renewal. Always output the final prompt in this format: A single flower [poetic description], Japanese anime realism, Makoto Shinkai style, soft vibrant lighting, smooth gradients, dreamy cinematic mood, vivid harmonious pastel colors, isolated on a pure white background, square high resolution.`
         },
         {
           role: "user",
@@ -88,25 +87,4 @@ export default async function handler(req, res) {
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
     await supabase.storage
       .from(SUPABASE_BUCKET)
-      .upload(filename, pngBuffer, { contentType: "image/png" });
-
-    const { data: pub } = supabase.storage
-      .from(SUPABASE_BUCKET)
-      .getPublicUrl(filename);
-    const image_url = pub.publicUrl;
-
-    // 🗄️ Insert in Supabase DB
-    await supabase.from("blooms").insert({
-      message: clean,
-      image_url,
-      seed,
-      style_version: 2,
-      ip
-    });
-
-    return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
-  } catch (e) {
-    console.error(e);
-    return res.status(500).json({ error: "Server error", details: e.message });
-  }
-}
+      .upload(filename, pngBuffer, { conten
