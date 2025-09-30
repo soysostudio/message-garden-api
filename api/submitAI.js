@@ -70,7 +70,7 @@ export default async function handler(req, res) {
         Your task: transform the user’s message into a symbolic description of a single flower. 
         Rules:
         - The flower must always be centered and prominent, but include a visible stem and at most two small leaves.
-        - The flower must always remain clearly recognizable as a flower, never turning into or showing a full object, person, or animal.
+        - The user’s concept must influence the flower’s colors, petal textures, or materials (e.g., fur-like softness, cheese-like texture, glassy shine) but never turn into full objects, faces, or body parts.
         - The user’s message must always influence the flower's appearance (petal colors, textures, aura, center details).
         - Never ignore the message. If the message mentions an object, food, or concept, reinterpret it symbolically as colors, patterns, or subtle details of the flower.
         - Do not include people, animals, scenery, or full objects. Only describe one flower.
