@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       messages: [
         {
           role: "system",
-          content: "Describe a single flower, poetic and vivid. Always only a flower, no people, no animals, no scenery. If the user mentions an object or concept, reinterpret it as symbolic colors, textures, patterns, or details in the petals or center, never replacing the flower. The flower must be illustrated in Japanese anime realism inspired by Makoto Shinkai, with soft vibrant lighting, natural highlights, and atmospheric shading. The style should feel poetic and cinematic, with smooth color blending and delicate gradients, avoiding harsh outlines. Surfaces should glow subtly under natural light, with vivid harmonious colors, rich depth, and gentle pastel tones. The flower must be completely isolated on a pure white background. Square format, high resolution."
+          content: "anime realism with dreamy cinematic atmosphere, soft vibrant lighting, natural highlights, smooth gradients, glowing pastel tones, delicate shading, luminous mood, isolated on pure white background, square format, high resolution"
         },
         {
           role: "user",
