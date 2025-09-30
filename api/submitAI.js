@@ -80,9 +80,11 @@ export default async function handler(req, res) {
       prompt: flowerPrompt,
       size: "1024x1024",
       background: "transparent",
-      quality: "high"  
+      quality: "high",
+      style: "vivid"
     });
     const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
+    const revisedPrompt = img.data[0].revised_prompt || flowerPrompt;
 
     // ☁️ Upload to Supabase
     const filename = `bloomAI_${Date.now()}_${seed}.png`;
@@ -101,7 +103,9 @@ export default async function handler(req, res) {
       image_url,
       seed,
       style_version: 2,
-      ip
+      ip,
+      style_version: 4,   // new version since style tuning
+      prompt_used: revisedPrompt // log what was actually sent by API
     });
 
     return res.status(200).json({ ok: true, image_url, prompt: flowerPrompt });
