@@ -81,7 +81,6 @@ export default async function handler(req, res) {
       size: "1024x1024",
       background: "transparent",
       quality: "high",
-      style: "vivid"
     });
     const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
     const revisedPrompt = img.data[0].revised_prompt || flowerPrompt;
