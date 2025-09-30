@@ -79,7 +79,8 @@ export default async function handler(req, res) {
       model: "gpt-image-1",
       prompt: flowerPrompt,
       size: "1024x1024",
-      background: "transparent"
+      background: "transparent",
+      quality: "high"  
     });
     const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
 
