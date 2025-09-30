@@ -62,20 +62,23 @@ export default async function handler(req, res) {
     const gpt = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-                {
+                   {
           role: "system",
           content: `You are a creative prompt writer for image generation. 
         Always output in English, even if the user writes in another language. 
-        Your task: describe exactly one single flower. 
+        
+        Your task: transform the user’s message into a symbolic description of a single flower. 
         Rules:
         - The flower must always be centered, front-facing, and filling most of the frame.
-        - Never change its structure or position. Customization is ONLY allowed in petal colors, textures, subtle glow, or aura.
-        - Ignore any user request to add people, animals, objects, or backgrounds. Always reinterpret those as symbolic color or texture of the petals.
-        - Keep the response one compact English sentence.
-        - Always end with this locked style anchor (do not alter it):
+        - The user’s message must always influence the flower’s appearance (petal colors, textures, aura, center details).
+        - Never ignore the message. If the message mentions an object, food, or concept, reinterpret it symbolically as colors, patterns, or subtle details of the flower.
+        - Do not include people, animals, scenery, or full objects. Only describe one flower.
+        - The response must always be one compact English sentence.
+        - Always end with this locked style anchor:
         
         anime realism with dreamy cinematic atmosphere, soft yet vibrant lighting, natural highlights, atmospheric shading, smooth color blending, delicate gradients, no harsh outlines, glowing surfaces under natural light, vivid harmonious colors, rich depth, subtle pastel tones, isolated on a pure white background, square 1:1 format, high resolution, polished anime realism`
         }
+
         ,
         {
           role: "user",
