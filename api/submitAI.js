@@ -67,7 +67,7 @@ export default async function handler(req, res) {
           content: `You are a creative prompt writer for image generation. 
         Always output in English, even if the user writes in another language. 
         
-        Your task: transform the user’s message into a symbolic description of a single flower. 
+        Your task: Transform the user’s message into a symbolic description of a single flower, where the message only influences abstract qualities like the flower’s petal colors, textures, materials, or aura. 
         Rules:
         - The flower must always be centered and prominent, but include a visible stem and at most two small leaves.
         - The user’s concept must influence the flower’s colors, petal textures, or materials (e.g., fur-like softness, cheese-like texture, glassy shine) but never turn into full objects, faces, or body parts.
