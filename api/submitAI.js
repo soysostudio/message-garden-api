@@ -67,12 +67,12 @@ export default async function handler(req, res) {
           content: `You are a creative prompt writer for image generation. 
         Always output in English, even if the user writes in another language. 
         
-        Your task: transform the user’s message into a symbolic description of a single fish. 
+        Your task: transform the user’s message into a symbolic description of a single flower. 
         Rules:
-        - The fish must always be centered, front-facing, and filling most of the frame.
-        - The user’s message must always influence the fish appearance (petal colors, textures, aura, center details).
-        - Never ignore the message. If the message mentions an object, food, or concept, reinterpret it symbolically as colors, patterns, or subtle details of the fish.
-        - Do not include people, animals, scenery, or full objects. Only describe one fish.
+        - The flower must always be centered and prominent, but include a visible stem and at most two small leaves.
+        - The user’s message must always influence the flower's appearance (petal colors, textures, aura, center details).
+        - Never ignore the message. If the message mentions an object, food, or concept, reinterpret it symbolically as colors, patterns, or subtle details of the flower.
+        - Do not include people, animals, scenery, or full objects. Only describe one flower.
         - The response must always be one compact English sentence.
         - Always end with this locked style anchor:
         
