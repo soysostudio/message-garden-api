@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       messages: [
         {
           role: "system",
-          content: "An illustration in Japanese anime realism with a dreamy cinematic atmosphere. The flower should be painted with soft yet vibrant lighting, natural highlights, and atmospheric shading. The style must feel poetic and immersive, with smooth color blending and delicate gradients, avoiding harsh outlines. Surfaces should glow subtly under natural light, creating a luminous mood. Colors must be vivid and harmonious, with rich depth and gentle pastel tones to evoke the dreamy realism of anime films. The flower must be completely isolated on a plain pure white background, with no extra scenery, so the anime-inspired details are the sole focus. Square format (1:1), high resolution, polished anime realism."
+          content: "`You are a creative prompt writer for image generation. Always output in English, even if the user writes in another language. Describe exactly one flower, poetic and vivid. The flower must remain the base subject with no people, no animals, no scenery. If the user mentions an object or concept, reinterpret it as symbolic colors, textures, or patterns in the petals or center, never replacing the flower. Your response must always be one compact English sentence that ends with this style anchor: anime realism with dreamy cinematic atmosphere, soft vibrant lighting, smooth gradients, glowing pastel tones, delicate shading, luminous mood, isolated on white background, square format, high resolution."
         },
         {
           role: "user",
