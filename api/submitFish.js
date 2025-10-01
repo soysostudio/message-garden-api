@@ -1,4 +1,4 @@
-// /api/submitFish.js
+// Vercel Serverless Function: POST /api/submitFish
 import { createClient } from "@supabase/supabase-js";
 import OpenAI from "openai";
 import crypto from "crypto";
@@ -7,11 +7,8 @@ const {
   OPENAI_API_KEY,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_BUCKET = "fish"   // use your bucket; "garden" is just a suggestion
+  SUPABASE_BUCKET = "fish"
 } = process.env;
-
-const TABLE = "fish";          // ← table to insert into
-const FOLDER = "fish";         // ← folder inside the bucket
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
@@ -29,7 +26,10 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   res.setHeader("Access-Control-Allow-Origin", "*");
-  if (req.method !== "POST") return res.status(405).json({ error: "Use POST" });
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Use POST" });
+  }
 
   try {
     const { message } = req.body || {};
@@ -37,62 +37,84 @@ export default async function handler(req, res) {
     if (!clean) return res.status(400).json({ error: "Message required" });
 
     const ip =
-      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-      req.socket?.remoteAddress ||
-      "";
+      req.headers["x-forwarded-for"]?.split(",")[0].trim() ||
+      req.socket.remoteAddress;
+
+    // 🐟 Limit check
+    const { count } = await supabase
+      .from("fish_blooms")
+      .select("*", { count: "exact", head: true });
+    if (count >= 200) {
+      return res.status(403).json({ error: "Fish tank is full 🐠" });
+    }
+
+    const { count: userCount } = await supabase
+      .from("fish_blooms")
+      .select("*", { count: "exact", head: true })
+      .eq("ip", ip);
+    if (userCount >= 500) {
+      return res.status(403).json({ error: "🐠 Max 3 fish per user" });
+    }
 
     const seed = hashToSeed(clean);
 
-    // 1) Build a safe, locked fish description (one-sentence)
-    const sys = `
-You rewrite any user message into a single-sentence, safe description of ONE stylized fish.
-Hard rules: describe only the fish body (no people, no animals, no text, no objects, no background).
-Keep the same hero pose: fish oriented left-to-right, slight 3/4 angle, centered.
-Personalization can affect only color palette, subtle patterns, and surface texture.
-At the end of the sentence, append exactly this locked style tag:
-" — anime realism, soft yet vibrant lighting, natural highlights, atmospheric shading, smooth gradients, no harsh outlines, luminous feel, harmonious vivid colors, isolated on pure white, square 1:1, high resolution, polished anime realism."
-If the input is unsafe or off-topic, output:
-"A gentle, iridescent koi with pearly fins and a luminous core" — anime realism, soft yet vibrant lighting, natural highlights, atmospheric shading, smooth gradients, no harsh outlines, luminous feel, harmonious vivid colors, isolated on pure white, square 1:1, high resolution, polished anime realism.
-    `.trim();
-
+    // 🎨 Generate prompt for fish
     const gpt = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "system", content: sys }, { role: "user", content: clean }]
+      messages: [
+        {
+          role: "system",
+          content: `You are a Creative AI specializing in Metaphorical Description, tasked with transforming abstract concepts, feelings, or ideas into vivid, poetic descriptions suitable for AI Image Generation prompts. Your sole focus is to describe the concept as a Fish.
+
+          Core Rules:
+          - Always describe the concept as a single, tangible Fish, centered and prominent.
+          - Exclusion of Environment: DO NOT describe water, ocean, corals, or background. Only the Fish itself.
+          - Style: Concise but richly descriptive, highly visual, and poetic — focusing on unusual materials, textures, colors, and symbolic feeling.
+          - Symbolic Interpretation: The user’s concept must influence scales, fins, or body textures as symbolic colors, patterns, or materials. NEVER turn into people, animals (other than fish), or objects.
+          - Output Format: One compact English sentence describing only the fish, immediately followed by the locked style anchor:
+
+          anime realism with dreamy cinematic atmosphere, soft yet vibrant lighting, natural highlights, atmospheric shading, smooth color blending, delicate gradients, no harsh outlines, glowing surfaces under natural light, vivid harmonious colors, rich depth, subtle pastel tones, isolated on a pure white background, square 1:1 format, high resolution, polished anime realism.`
+        },
+        { role: "user", content: clean }
+      ]
     });
+
     const fishPrompt = gpt.choices[0].message.content.trim();
 
-    // 2) Generate the image
+    // 🖼️ Generate image
     const img = await openai.images.generate({
       model: "gpt-image-1",
       prompt: fishPrompt,
       size: "1024x1024",
-      background: "transparent"
+      background: "transparent",
     });
-
     const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
     const revisedPrompt = img.data[0].revised_prompt || fishPrompt;
 
-    // 3) Upload to Supabase Storage (foldered)
-    const filename = `${FOLDER}/fish_${Date.now()}_${seed}.png`;
-    await supabase.storage.from(SUPABASE_BUCKET)
-      .upload(filename, pngBuffer, { contentType: "image/png", upsert: false });
+    // ☁️ Upload to Supabase
+    const filename = `fishAI_${Date.now()}_${seed}.png`;
+    await supabase.storage
+      .from(SUPABASE_BUCKET)
+      .upload(filename, pngBuffer, { contentType: "image/png" });
 
-    const { data: pub } = supabase.storage.from(SUPABASE_BUCKET).getPublicUrl(filename);
+    const { data: pub } = supabase.storage
+      .from(SUPABASE_BUCKET)
+      .getPublicUrl(filename);
     const image_url = pub.publicUrl;
 
-    // 4) Insert row to the fish table
-    await supabase.from(TABLE).insert({
+    // 🗄️ Insert in Supabase DB
+    await supabase.from("fish_blooms").insert({
       message: clean,
       image_url,
       seed,
-      style_version: 1,
       ip,
+      style_version: 1,
       prompt_used: revisedPrompt
     });
 
     return res.status(200).json({ ok: true, image_url, prompt: fishPrompt });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ error: "Server error", details: err.message });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ error: "Server error", details: e.message });
   }
 }
