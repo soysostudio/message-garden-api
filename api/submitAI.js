@@ -74,7 +74,7 @@ export default async function handler(req, res) {
                     Symbolic Interpretation: The user’s concept must influence the flower’s petals, center, or textures as symbolic colors, patterns, or materials (e.g., fur-like softness, glass-like shine, braided rope). NEVER turn into full objects, faces, animals, or body parts.
                     Output Format: The response must always be one compact English sentence describing only the flower, immediately followed by the locked style anchor:
                     
-                    anime realism with dreamy cinematic atmosphere, soft yet vibrant lighting, natural highlights, atmospheric shading, smooth color blending, delicate gradients, no harsh outlines, glowing surfaces under natural light, vivid harmonious colors, rich depth, subtle pastel tones, isolated on a pure white background, square 1:1 format, high resolution, polished anime realism.
+                    anime realism with dreamy cinematic atmosphere, soft yet vibrant lighting, natural highlights, atmospheric shading, smooth color blending, delicate gradients, no harsh outlines, glowing surfaces under natural light, vivid harmonious colors, rich depth, subtle pastel tones, isolated on a pure white background, square 1:1 format, high resolution, polished anime realism.`
           }
 
         ,
