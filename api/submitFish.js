@@ -7,7 +7,7 @@ const {
   OPENAI_API_KEY,
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_BUCKET = "garden"   // use your bucket; "garden" is just a suggestion
+  SUPABASE_BUCKET = "fish"   // use your bucket; "garden" is just a suggestion
 } = process.env;
 
 const TABLE = "fish";          // ← table to insert into
