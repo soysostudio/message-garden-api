@@ -92,7 +92,6 @@ export default async function handler(req, res) {
       prompt: flowerPrompt,
       size: "1024x1024",
       background: "transparent",
-      quality: "high",
     });
     const pngBuffer = Buffer.from(img.data[0].b64_json, "base64");
     const revisedPrompt = img.data[0].revised_prompt || flowerPrompt;
