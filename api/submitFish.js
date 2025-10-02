@@ -42,14 +42,14 @@ export default async function handler(req, res) {
 
     // 🐟 Limit check
     const { count } = await supabase
-      .from("fish_blooms")
+      .from("fish")
       .select("*", { count: "exact", head: true });
     if (count >= 200) {
       return res.status(403).json({ error: "Fish tank is full 🐠" });
     }
 
     const { count: userCount } = await supabase
-      .from("fish_blooms")
+      .from("fish")
       .select("*", { count: "exact", head: true })
       .eq("ip", ip);
     if (userCount >= 500) {
@@ -75,7 +75,11 @@ export default async function handler(req, res) {
 
           anime realism with dreamy cinematic atmosphere, soft yet vibrant lighting, natural highlights, atmospheric shading, smooth color blending, delicate gradients, no harsh outlines, glowing surfaces under natural light, vivid harmonious colors, rich depth, subtle pastel tones, isolated on a pure white background, square 1:1 format, high resolution, polished anime realism.`
         },
-        { role: "user", content: clean }
+        
+        {
+          role: "user",
+          content: clean
+        }
       ]
     });
 
@@ -103,13 +107,14 @@ export default async function handler(req, res) {
     const image_url = pub.publicUrl;
 
     // 🗄️ Insert in Supabase DB
-    await supabase.from("fish_blooms").insert({
+    await supabase.from("fish").insert({
       message: clean,
       image_url,
       seed,
+      style_version: 2,
       ip,
-      style_version: 1,
-      prompt_used: revisedPrompt
+      style_version: 4,   // new version since style tuning
+      prompt_used: revisedPrompt // log what was actually sent by API
     });
 
     return res.status(200).json({ ok: true, image_url, prompt: fishPrompt });
